@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="GroundSim.Tests/GroundSim.Tests.csproj" />
+  <Project Path="GroundSim/GroundSim.csproj" />
+</Solution>
