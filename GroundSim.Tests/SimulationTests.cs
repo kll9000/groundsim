@@ -85,6 +85,29 @@ public class ParticleTests
     }
 
     [Fact]
+    public void DroppedParticle_DoesNotCutThroughSolidCorner()
+    {
+        // The particle comes to rest at (5, 7) on top of the rock at (5, 8).
+        // The left diagonal-down (4, 8) is open, but the left SIDE cell (4, 7)
+        // is rock — sliding to (4, 8) would cut through the solid corner
+        // formed by (4, 7) and (5, 8). The right diagonal (6, 8) is blocked
+        // outright. With the side-cell check, no slide is possible and the
+        // particle must settle in place at (5, 7).
+        var grid = new Grid(10, 10);
+        for (int x = 0; x < 10; x++) grid[x, 9] = CellMaterial.Rock; // floor
+        grid[5, 8] = CellMaterial.Rock; // directly below the particle
+        grid[4, 7] = CellMaterial.Rock; // left side cell (corner blocker)
+        grid[6, 8] = CellMaterial.Rock; // right diagonal blocked
+
+        var sim = new Simulation(grid);
+        sim.Drop(5, 0, CellMaterial.Dirt);
+        sim.RunUntilSettled();
+
+        Assert.Equal(CellMaterial.Dirt, grid[5, 7]);
+        Assert.Equal(CellMaterial.Air, grid[4, 8]); // the corner-cut destination stays empty
+    }
+
+    [Fact]
     public void MultipleDropsAtSameSpot_FormAPile_NotAColumn()
     {
         var grid = new Grid(40, 40);

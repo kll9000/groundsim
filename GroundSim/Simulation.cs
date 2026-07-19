@@ -40,9 +40,10 @@ public sealed class Simulation
     /// <summary>
     /// Advances all active particles by one step. Rules per particle:
     ///  1. If the cell below is Air, fall one cell.
-    ///  2. Else if diagonal-down-left or diagonal-down-right is Air (and the
-    ///     side cell is checked implicitly by the diagonal itself), slide
-    ///     there. When both are open, the side is chosen randomly to avoid a
+    ///  2. Else if a diagonal-down cell AND the side cell on that same side
+    ///     (same row as the particle) are both Air, slide to the diagonal.
+    ///     Requiring the side cell prevents cutting through a solid corner.
+    ///     When both sides are open, one is chosen randomly to avoid a
     ///     directional bias in pile shapes.
     ///  3. Else settle: write the material into the grid and deactivate.
     /// A particle at the bottom row settles in place.
@@ -67,8 +68,8 @@ public sealed class Simulation
                 continue;
             }
 
-            bool leftOpen = Grid.IsAir(p.X - 1, below);
-            bool rightOpen = Grid.IsAir(p.X + 1, below);
+            bool leftOpen = Grid.IsAir(p.X - 1, below) && Grid.IsAir(p.X - 1, p.Y);
+            bool rightOpen = Grid.IsAir(p.X + 1, below) && Grid.IsAir(p.X + 1, p.Y);
 
             if (leftOpen && rightOpen)
             {

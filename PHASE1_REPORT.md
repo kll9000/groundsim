@@ -48,9 +48,11 @@ Phase 1 is a **headless console app** — no renderer, ASCII output only.
    tick cost is O(active particles), independent of grid size. Any Phase 2 feature
    (e.g. cave-ins, erosion) must preserve this — never scan the whole grid per tick.
 4. **Physics rules per tick** — fall 1 cell if below is Air; else slide to
-   diagonal-down-left/right if open (random tie-break via seeded RNG, so no
-   directional bias in pile shapes and runs are reproducible); else settle. Bottom
-   row settles in place.
+   diagonal-down-left/right if both the diagonal AND the side cell on that side are
+   Air (the side-cell requirement prevents cutting through solid corners; random
+   tie-break via seeded RNG, so no directional bias in pile shapes and runs are
+   reproducible); else settle. Bottom row settles in place. *(Side-cell check added
+   in the Phase 1.5 correction pass.)*
 5. **Rock is not diggable** — `Dig()` returns `null` for Rock and Air, so agents
    can't tunnel through rock. Deliberate; revisit if mining is wanted.
 6. **Drop lands on top of piles** — `Simulation.Drop()` walks upward to the first Air
@@ -100,9 +102,6 @@ Passed!  - Failed: 0, Passed: 9, Skipped: 0, Total: 9, Duration: 116 ms
 - **Single particle in flight per agent cycle.** The simulation supports many
   concurrent particles, but the test agent settles each drop before the next dig.
   Phase 2 should exercise many simultaneous particles.
-- **Diagonal slide checks only the diagonal cell,** not the adjacent side cell —
-  particles can slip through diagonal one-cell gaps. Acceptable for Phase 1; tighten
-  if it looks wrong at scale.
 - **No tunnel-stability / cave-in rules.** Dug tunnels of any shape stay open forever.
   If ant tunnels should collapse without support, that's new physics.
 - **Materials beyond Dirt are inert.** Grass/Fungus exist in the enum only; no growth,
