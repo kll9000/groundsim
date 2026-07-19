@@ -31,6 +31,11 @@ public sealed class Tender
                     colony.RawMaterial -= 1;
                     colony.FarmedResource += 1;
                     colony.Stats.RawProcessedByTenders += 1;
+                    if (colony.GetRoom(RoomType.Garden) is { Excavated: true } garden
+                        && garden.Contains(X, Y))
+                    {
+                        colony.Stats.ProcessedInGarden += 1;
+                    }
                 }
             }
             return;

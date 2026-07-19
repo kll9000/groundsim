@@ -10,16 +10,30 @@ namespace GroundSim;
 public sealed class Forager
 {
     private readonly PathWalker _walker;
+    private readonly DigAssist _dig = new();
     private ResourceNode? _targetNode;
 
     public int X => _walker.X;
     public int Y => _walker.Y;
     public double Carrying { get; private set; }
 
+    /// <summary>Set by Colony.AssignDiggers: this Forager is temporarily on
+    /// communal room-excavation duty (gathering resumes when the site is
+    /// done). Digging is communal work, not another caste's job — the
+    /// gather/process exclusivity invariants are untouched.</summary>
+    public bool AssignedToDig { get; set; }
+
     public Forager(int x, int y) => _walker = new PathWalker(x, y);
 
     public void Tick(Colony colony, Grid grid)
     {
+        int dx = X, dy = Y;
+        if (_dig.Tick(colony, grid, ref dx, ref dy, AssignedToDig))
+        {
+            _walker.SetPosition(dx, dy);
+            return;
+        }
+
         if (Carrying > 0)
         {
             if (_walker.MoveTowards(grid, colony.HomeCenter))

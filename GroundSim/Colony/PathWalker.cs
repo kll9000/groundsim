@@ -23,6 +23,17 @@ public sealed class PathWalker
         Y = y;
     }
 
+    /// <summary>Adopt an externally-moved position (e.g. after a DigAssist
+    /// stint moved the owner via Agent machinery) and drop any stale path.</summary>
+    public void SetPosition(int x, int y)
+    {
+        if (x == X && y == Y) return;
+        X = x;
+        Y = y;
+        _path = null;
+        _plannedTarget = null;
+    }
+
     /// <summary>
     /// One unit of movement work toward the target. Returns true when standing
     /// on the target cell. Unreachable targets retry on a cooldown.

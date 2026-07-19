@@ -39,6 +39,18 @@ public sealed class ColonyConfig
     /// <summary>Ticks a Tender spends converting 1 raw material into 1 farmed resource.</summary>
     public int ProcessTicks { get; init; } = 20;
 
+    /// <summary>Farmed resource mass at which the Fungus Garden triggers.</summary>
+    public double GardenTriggerThreshold { get; init; } = 30;
+
+    /// <summary>Brood-pressure integral (sum of egg count per tick since
+    /// founding) at which the Nursery triggers. An integral, not an
+    /// instantaneous egg count — matching Colony Builder's own documented
+    /// finding that instantaneous checks near a cap almost never fire.</summary>
+    public double NurseryBroodPressureThreshold { get; init; } = 25_000;
+
+    /// <summary>Max idle Foragers assigned to assist room excavation.</summary>
+    public int WorkerDiggers { get; init; } = 2;
+
     public double HaulSize(double distanceFromHome)
         => Math.Max(GatherChunkMin, GatherChunkBase - GatherDistanceFalloff * distanceFromHome);
 }

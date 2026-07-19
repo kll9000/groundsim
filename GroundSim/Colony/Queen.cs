@@ -73,6 +73,7 @@ public sealed class Queen
             _foundingAgent = null;
             (X, Y) = ((_chamber.X0 + _chamber.X1) / 2, (_chamber.Y0 + _chamber.Y1) / 2);
             colony.FarmedResource += colony.Config.StarterResource;
+            colony.NotifyHomeFounded();
             State = QueenState.Laying;
         }
     }

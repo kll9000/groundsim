@@ -188,6 +188,17 @@ public sealed class Agent
         return true;
     }
 
+    /// <summary>
+    /// Releases any held dig-target claim. MUST be called when discarding an
+    /// agent mid-cycle (e.g. dig-assist reassignment) — otherwise the claim
+    /// leaks and the claimed cell can never be dug by anyone.
+    /// </summary>
+    public void ReleaseClaims()
+    {
+        if (_digTarget is { } t) _claims.Remove(t);
+        _digTarget = null;
+    }
+
     private void AbandonDigTarget()
     {
         if (_digTarget is { } t) _claims.Remove(t);
