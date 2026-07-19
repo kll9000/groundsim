@@ -24,6 +24,9 @@ public sealed class GridRenderer
     /// <summary>Debug overlay color for in-flight (awake) particles.</summary>
     private static readonly Color AwakeColor = Color.FromRgb(255, 230, 40);
 
+    private static readonly Color AgentColor = Color.FromRgb(230, 65, 65);
+    private static readonly Color AgentCarryingColor = Color.FromRgb(255, 150, 50);
+
     private static Color MaterialColor(CellMaterial m) => m switch
     {
         CellMaterial.Air => Color.FromRgb(24, 26, 34),
@@ -54,8 +57,11 @@ public sealed class GridRenderer
         }
     }
 
-    /// <summary>Redraws only the given dirty cells from grid state, then overlays particles.</summary>
-    public void DrawFrame(IReadOnlyCollection<(int X, int Y)> dirtyCells, Simulation sim)
+    /// <summary>Redraws only the given dirty cells from grid state, then overlays
+    /// particles and agents (red = empty-handed, orange = carrying).</summary>
+    public void DrawFrame(
+        IReadOnlyCollection<(int X, int Y)> dirtyCells, Simulation sim,
+        IReadOnlyList<Agent>? agents = null)
     {
         foreach (var (x, y) in dirtyCells)
         {
@@ -64,6 +70,13 @@ public sealed class GridRenderer
         foreach (var p in sim.ActiveParticles)
         {
             DrawCell(p.X, p.Y, AwakeColor);
+        }
+        if (agents is not null)
+        {
+            foreach (var a in agents)
+            {
+                DrawCell(a.X, a.Y, a.Carried is null ? AgentColor : AgentCarryingColor);
+            }
         }
     }
 
