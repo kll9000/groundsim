@@ -122,8 +122,13 @@ public class SurfaceMovementTests
     }
 
     [Fact]
-    public void ColonyRun_NoWorkerEndsUpFloatingOverOpenSky()
+    public void ColonyRun_NoWorkerEndsUpVisiblyFloating_ByIndependentOracle()
     {
+        // Phase 9.5: this audit uses Terrain.IsVisiblyFloating — an
+        // independent 3×3-contact oracle that never consults IsSupported —
+        // so it can fail on a false-positive in the production rule (e.g.
+        // the enclosed/roof branch claiming support from distant overhead
+        // material), not just on cases the rule already agrees are wrong.
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = Colony.Found(grid, sim, new ColonyConfig(),
             ColonyTestWorld.Chamber, startX: 56, startY: 29, seed: 5);
@@ -132,10 +137,10 @@ public class SurfaceMovementTests
 
         ColonyTestWorld.Run(colony, sim, 12_000);
 
-        // Sweep window: every worker must be supported at some point in the
-        // next 150 ticks (an agent can legitimately be mid-fall at any single
-        // instant; persistent floating is the bug).
-        var everSupported = new bool[colony.Tenders.Count + colony.Foragers.Count + colony.Majors.Count];
+        // Sweep window: every worker must be non-floating (by the oracle) at
+        // some point in the next 150 ticks — an agent can legitimately be
+        // mid-fall at any single instant; PERSISTENT floating is the bug.
+        var everGrounded = new bool[colony.Tenders.Count + colony.Foragers.Count + colony.Majors.Count];
         for (int t = 0; t < 150; t++)
         {
             int i = 0;
@@ -143,16 +148,42 @@ public class SurfaceMovementTests
                 .Concat(colony.Foragers.Select(x => (x.X, x.Y)))
                 .Concat(colony.Majors.Select(x => (x.X, x.Y))))
             {
-                if (i < everSupported.Length && Terrain.IsSupported(grid, w.X, w.Y)) everSupported[i] = true;
+                if (i < everGrounded.Length && !Terrain.IsVisiblyFloating(grid, w.X, w.Y)) everGrounded[i] = true;
                 i++;
             }
             colony.Tick();
             sim.Tick();
         }
-        for (int i = 0; i < everSupported.Length; i++)
+        for (int i = 0; i < everGrounded.Length; i++)
         {
-            Assert.True(everSupported[i], $"worker #{i} floated unsupported for 150 consecutive ticks");
+            Assert.True(everGrounded[i], $"worker #{i} was visibly floating for 150 consecutive ticks");
         }
+    }
+
+    [Fact]
+    public void OracleAndProductionRule_DivergeOnDistantRoof_DocumentedEdgeCase()
+    {
+        // Phase 9.5, item 1 finding pinned as a KNOWN THEORETICAL EDGE CASE:
+        // IsSupported's enclosed/roof branch calls a contact-free cell
+        // "supported" when solid material exists anywhere overhead in its
+        // column — here, seven rows up. The independent oracle disagrees.
+        // The 5-seed × 15k-tick colony audit found ZERO real occurrences
+        // (colony excavations are open pits; the enclosed branch never fires
+        // for contact-free cells in practice), so per the handoff this is
+        // documented, not fixed. If room shapes ever gain real roofs, this
+        // test is the marker for re-opening that decision.
+        var grid = new Grid(20, 20);
+        for (int x = 0; x < 20; x++) grid[x, 15] = CellMaterial.Dirt; // floor
+        grid[10, 5] = CellMaterial.Rock; // overhang, seven rows above (10,12)
+
+        Assert.True(Terrain.IsSupported(grid, 10, 12),
+            "production rule: enclosed-by-distant-roof counts as supported (current behavior)");
+        Assert.True(Terrain.IsVisiblyFloating(grid, 10, 12),
+            "oracle: nothing in the 3×3 neighborhood — visibly floating");
+
+        // One column over (no overhang): both agree it falls/floats.
+        Assert.False(Terrain.IsSupported(grid, 11, 12));
+        Assert.True(Terrain.IsVisiblyFloating(grid, 11, 12));
     }
 
     [Fact]

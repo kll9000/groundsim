@@ -33,6 +33,34 @@ public static class Terrain
     }
 
     /// <summary>
+    /// INDEPENDENT DIAGNOSTIC ORACLE (Phase 9.5) — deliberately NOT used by
+    /// any movement logic, and deliberately not sharing IsSupported's
+    /// reasoning: an agent is "visibly floating" if its cell is Air and there
+    /// is no solid cell anywhere in its 3×3 neighborhood — nothing to stand
+    /// on, cling to, or hang from, including a ceiling directly overhead.
+    /// Exists so floating audits can catch IsSupported being WRONG (e.g. its
+    /// enclosed/roof rule classifying a cell as supported because of solid
+    /// material rows overhead with nothing touching the agent), instead of
+    /// only confirming the production rule agrees with itself.
+    /// </summary>
+    public static bool IsVisiblyFloating(Grid grid, int x, int y)
+    {
+        if (!grid.IsAir(x, y)) return false; // buried, not floating
+        if (y >= grid.Height - 1) return false; // resting on the world edge
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                if (dx == 0 && dy == 0) continue;
+                int nx = x + dx, ny = y + dy;
+                if (!grid.InBounds(nx, ny)) return false; // grid edge counts as a wall
+                if (grid[nx, ny] != CellMaterial.Air) return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
     /// Whether an agent standing in (x, y) may stay there rather than fall:
     /// grid bottom, solid below, enclosed space (free climbing, unchanged
     /// Phase 4 behavior), or cling contact — a solid side-neighbor OR a solid
