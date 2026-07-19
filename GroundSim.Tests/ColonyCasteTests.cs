@@ -153,8 +153,10 @@ public class ForagerTests
     public void Forager_GathersAndHaulsRawHome()
     {
         var (grid, sim) = ColonyTestWorld.Create();
+        // Regen disabled (Phase 9): this test's conservation equation needs
+        // node depletion to have exactly one cause — gathering.
         var colony = ColonyTestWorld.Founded(grid, sim,
-            new ColonyConfig { EggSurvivalChance = 0 });
+            new ColonyConfig { EggSurvivalChance = 0, NodeRegenPerTick = 0 });
         var node = new ResourceNode(80, 29, 20);
         colony.Nodes.Add(node);
         colony.Spawn(Caste.Forager, colony.HomeCenter.X, colony.HomeCenter.Y);

@@ -23,6 +23,9 @@ public sealed class Forager
     /// gather/process exclusivity invariants are untouched.</summary>
     public bool AssignedToDig { get; set; }
 
+    /// <summary>Read-only introspection of the dig-assist agent, if active.</summary>
+    public Agent? DigAgent => _dig.ActiveAgent;
+
     public Forager(int x, int y) => _walker = new PathWalker(x, y);
 
     public void Tick(Colony colony, Grid grid)

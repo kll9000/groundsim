@@ -144,7 +144,9 @@ public class BehaviorRelocationTests
         Assert.True(observedTenderProcessingInGarden,
             "Never observed a Tender processing while inside the Garden");
         Assert.Equal(colony.Stats.RawProcessedByTenders, colony.Stats.ProcessedInGarden, 3);
-        Assert.Equal(garden.Center, colony.ProcessingSite);
+        // Phase 9 update: the site is the garden's FLOOR center (terrain-
+        // following made mid-air targets unreachable).
+        Assert.Equal((garden.Center.X, garden.Y1), colony.ProcessingSite);
     }
 
     [Fact]
@@ -218,7 +220,8 @@ public class EndToEndStageTests
                 $"seed {seed}: Nursery not excavated within {maxTicks} ticks");
             Assert.True(colony.GetRoom(RoomType.Garden)!.Excavated);
             Assert.True(colony.GetRoom(RoomType.Nursery)!.Excavated);
-            Assert.Equal(colony.GetRoom(RoomType.Garden)!.Center, colony.ProcessingSite);
+            var g = colony.GetRoom(RoomType.Garden)!;
+            Assert.Equal((g.Center.X, g.Y1), colony.ProcessingSite); // Phase 9: floor center
 
             firstWorker.Add(m.FirstWorkerTick!.Value);
             gardenDone.Add(m.GardenExcavatedTick!.Value);

@@ -71,7 +71,9 @@ public sealed class Queen
         {
             // Settle permanently: discard the dig machinery, deposit starter.
             _foundingAgent = null;
-            (X, Y) = ((_chamber.X0 + _chamber.X1) / 2, (_chamber.Y0 + _chamber.Y1) / 2);
+            // Settle on the chamber FLOOR (Phase 9 terrain-following) — she
+            // shouldn't hover at the pit's geometric center.
+            (X, Y) = ((_chamber.X0 + _chamber.X1) / 2, _chamber.Y1);
             colony.FarmedResource += colony.Config.StarterResource;
             colony.NotifyHomeFounded();
             State = QueenState.Laying;

@@ -43,6 +43,15 @@ public sealed class Agent
     private Queue<(int X, int Y)>? _path;
     private (int X, int Y)? _digTarget;
     private int _idleCooldown;
+    private int _dropPathFailures;
+
+    /// <summary>Consecutive failed drop-path plans before the agent dumps its
+    /// carried material in place instead of deadlocking. Excavation can sever
+    /// the only climbable route to the spoil column mid-dig (Phase 9: support
+    /// rules made routes severable); dumping keeps material conserved as a
+    /// normal falling particle — worst case it lands back in the dig region
+    /// and is re-dug once a route exists again.</summary>
+    private const int MaxDropPathFailures = 3;
 
     /// <summary>Ticks to wait before rescanning after failing to find work —
     /// keeps a workless agent from re-scanning its whole region every tick.</summary>
@@ -71,6 +80,14 @@ public sealed class Agent
             return;
         }
 
+        // Unsupported in open air (Phase 9): fall one cell per tick. Agent-
+        // side movement, deliberately NOT a Simulation particle.
+        if (!Terrain.IsSupported(_grid, X, Y))
+        {
+            Y++;
+            return;
+        }
+
         switch (State)
         {
             case AgentState.Idle: TickIdle(); break;
@@ -89,8 +106,23 @@ public sealed class Agent
         // before taking new work.
         if (Carried is not null)
         {
-            if (PlanDropPath()) State = AgentState.PathingToDrop;
-            else _idleCooldown = IdleCooldownTicks;
+            if (PlanDropPath())
+            {
+                _dropPathFailures = 0;
+                State = AgentState.PathingToDrop;
+            }
+            else if (++_dropPathFailures >= MaxDropPathFailures)
+            {
+                // Emergency dump (see MaxDropPathFailures): no route to the
+                // spoil column — drop here rather than deadlock carrying.
+                if (_sim.Drop(X, Y, Carried.Value)) Carried = null;
+                _dropPathFailures = 0;
+                _idleCooldown = IdleCooldownTicks;
+            }
+            else
+            {
+                _idleCooldown = IdleCooldownTicks;
+            }
             return;
         }
 
@@ -112,6 +144,17 @@ public sealed class Agent
         }
 
         var next = _path.Peek();
+        if (Math.Abs(next.X - X) + Math.Abs(next.Y - Y) != 1)
+        {
+            // Falling desynced us from the plan — replan, never teleport.
+            bool replanned = pathingToDig ? PlanPathToDigTarget() : PlanDropPath();
+            if (!replanned)
+            {
+                if (pathingToDig) AbandonDigTarget();
+                else { State = AgentState.Idle; _idleCooldown = IdleCooldownTicks; }
+            }
+            return;
+        }
         if (!_grid.IsAir(next.X, next.Y))
         {
             // Terrain changed under the path (settled particle, other agent's

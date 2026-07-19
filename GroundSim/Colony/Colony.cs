@@ -91,7 +91,11 @@ public sealed class Colony
         : ColonyStage.Expansion;
 
     public (int X0, int Y0, int X1, int Y1) HomeRoom => Rooms[0].Rect;
-    public (int X, int Y) HomeCenter => Rooms[0].Center;
+
+    /// <summary>The Home Room's floor-center cell. Phase 9: fixed colony
+    /// sites live on room FLOORS — with terrain-following movement a mid-air
+    /// "center" would be a cell agents immediately fall out of.</summary>
+    public (int X, int Y) HomeCenter => (Rooms[0].Center.X, Rooms[0].Y1);
 
     private readonly Random _rng;
 
@@ -130,9 +134,9 @@ public sealed class Colony
                 grid[x, y] = CellMaterial.Air;
             }
         }
-        var center = ((chamber.X0 + chamber.X1) / 2, (chamber.Y0 + chamber.Y1) / 2);
+        // Queen rests on the chamber floor (Phase 9 terrain-following).
         var colony = new Colony(grid, sim, config, chamber, homeExcavated: true,
-            new Queen(center.Item1, center.Item2), seed);
+            new Queen((chamber.X0 + chamber.X1) / 2, chamber.Y1), seed);
         colony.FarmedResource = config.StarterResource;
         colony.Milestones.HomeFoundedTick = 0;
         return colony;
@@ -141,6 +145,8 @@ public sealed class Colony
     public void Tick()
     {
         TickCount++;
+
+        foreach (var node in Nodes) node.Regenerate(Config.NodeRegenPerTick);
 
         UpdateRoomTriggers();
         ManageExcavation();
@@ -226,8 +232,9 @@ public sealed class Colony
         {
             case RoomType.Garden:
                 // The Phase 6 seam doing its job: relocate processing with
-                // zero Tender code changes.
-                ProcessingSiteProvider = c => room.Center;
+                // zero Tender code changes. Floor cell, not geometric center
+                // (Phase 9 terrain-following — see HomeCenter).
+                ProcessingSiteProvider = c => (room.Center.X, room.Y1);
                 Milestones.GardenExcavatedTick ??= TickCount;
                 break;
             case RoomType.Nursery:
@@ -351,12 +358,17 @@ public sealed class Colony
 
     private (int X, int Y) RandomAirCellIn((int X0, int Y0, int X1, int Y1) rect)
     {
+        // Prefer SUPPORTED air cells (floor-resting): with Phase 9 terrain-
+        // following, a mid-air egg would be unreachable for a Tender.
+        (int, int)? anyAir = null;
         for (int attempt = 0; attempt < 20; attempt++)
         {
             int x = _rng.Next(rect.X0, rect.X1 + 1);
             int y = _rng.Next(rect.Y0, rect.Y1 + 1);
-            if (Grid.IsAir(x, y)) return (x, y);
+            if (!Grid.IsAir(x, y)) continue;
+            if (!Grid.IsAir(x, y + 1)) return (x, y); // resting on solid
+            anyAir ??= (x, y);
         }
-        return ((rect.X0 + rect.X1) / 2, (rect.Y0 + rect.Y1) / 2);
+        return anyAir ?? ((rect.X0 + rect.X1) / 2, rect.Y1);
     }
 }

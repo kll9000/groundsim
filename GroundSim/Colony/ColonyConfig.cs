@@ -51,6 +51,10 @@ public sealed class ColonyConfig
     /// <summary>Max idle Foragers assigned to assist room excavation.</summary>
     public int WorkerDiggers { get; init; } = 2;
 
+    /// <summary>Resource-node regrowth per tick toward each node's cap
+    /// (Phase 9 sustain; 0 disables regeneration).</summary>
+    public double NodeRegenPerTick { get; init; } = 0.02;
+
     public double HaulSize(double distanceFromHome)
         => Math.Max(GatherChunkMin, GatherChunkBase - GatherDistanceFalloff * distanceFromHome);
 }

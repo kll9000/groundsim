@@ -13,6 +13,10 @@ public sealed class DigAssist
 
     public CellMaterial? Carrying => _agent?.Carried;
 
+    /// <summary>The internal dig agent, if any — read-only introspection for
+    /// diagnostics and tests.</summary>
+    public Agent? ActiveAgent => _agent;
+
     /// <summary>
     /// One tick of dig work if wanted and a site is active (or leftover spoil
     /// needs delivering). Returns true if this consumed the tick; x/y are

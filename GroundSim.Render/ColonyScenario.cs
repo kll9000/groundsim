@@ -22,8 +22,10 @@ public static class ColonyScenario
         var colony = Colony.Found(grid, sim, new ColonyConfig(), chamber,
             startX: 96, startY: GroundLevel - 1, seed);
 
-        colony.Nodes.Add(new ResourceNode(30, GroundLevel - 1, 10_000));
-        colony.Nodes.Add(new ResourceNode(170, GroundLevel - 1, 10_000));
+        // Modest caps + default regeneration (Phase 9): patches visibly
+        // deplete and regrow instead of the colony running dry.
+        colony.Nodes.Add(new ResourceNode(30, GroundLevel - 1, 800));
+        colony.Nodes.Add(new ResourceNode(170, GroundLevel - 1, 800));
         return (grid, sim, colony);
     }
 }

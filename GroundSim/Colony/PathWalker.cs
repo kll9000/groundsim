@@ -47,6 +47,14 @@ public sealed class PathWalker
             return false;
         }
 
+        // Unsupported in open air: fall one cell — this tick's unit of work.
+        // Applied before anything else, regardless of what the path says.
+        if (!Terrain.IsSupported(grid, X, Y))
+        {
+            Y++;
+            return false;
+        }
+
         if ((X, Y) == target) return true;
 
         if (_replanCooldown > 0) { _replanCooldown--; return false; }
@@ -58,6 +66,12 @@ public sealed class PathWalker
         }
 
         var next = _path.Peek();
+        if (Math.Abs(next.X - X) + Math.Abs(next.Y - Y) != 1)
+        {
+            // Falling desynced us from the plan — replan, never teleport.
+            Plan(grid, target);
+            return false;
+        }
         if (!grid.IsAir(next.X, next.Y))
         {
             Plan(grid, target); // terrain changed under the path

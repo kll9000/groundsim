@@ -6,15 +6,19 @@ namespace GroundSim.Tests;
 public class PathfinderTests
 {
     [Fact]
-    public void FindPath_ReturnsValidAdjacentAirOnlyPath()
+    public void FindPath_ReturnsValidAdjacentSupportedAirPath()
     {
-        var grid = new Grid(20, 20); // all Air
-        // Vertical wall at x=10 with a single gap at y=15.
-        for (int y = 0; y < 20; y++) grid[10, y] = CellMaterial.Rock;
-        grid[10, 15] = CellMaterial.Air;
+        // Phase 9 update: this world originally was all-Air with an aerial
+        // start/goal — legal when any Air was traversable, meaningless now
+        // that paths must stay on SUPPORTED cells. Same intent (path threads
+        // a 1-cell wall gap), rebuilt on a floor.
+        var grid = new Grid(20, 20);
+        for (int x = 0; x < 20; x++) grid[x, 18] = CellMaterial.Rock; // floor
+        for (int y = 0; y < 18; y++) grid[10, y] = CellMaterial.Rock; // wall on the floor
+        grid[10, 17] = CellMaterial.Air;                              // gap at floor level
 
-        var start = (X: 2, Y: 2);
-        var goal = (X: 17, Y: 3);
+        var start = (X: 2, Y: 17);
+        var goal = (X: 17, Y: 17);
         var path = Pathfinder.FindPath(grid, start, goal);
 
         Assert.NotNull(path);
@@ -24,9 +28,10 @@ public class PathfinderTests
         {
             Assert.Equal(1, Math.Abs(step.X - prev.X) + Math.Abs(step.Y - prev.Y)); // adjacent
             Assert.Equal(CellMaterial.Air, grid[step.X, step.Y]);                    // never solid
+            Assert.True(Terrain.IsSupported(grid, step.X, step.Y));                  // never free air
             prev = step;
         }
-        Assert.Contains((10, 15), path); // must have used the gap
+        Assert.Contains((10, 17), path); // must have used the gap
     }
 
     [Fact]
