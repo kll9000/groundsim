@@ -43,15 +43,23 @@ public class MaterialBehaviorTests
         Assert.Null(grid.Dig(4, 5)); // terrain rock stays undiggable
     }
 
-    [Fact]
-    public void RockPile_IsMeasurablySteeperAndNarrower_ThanDirtPile()
+    // Phase 3 review note: a shared seed does NOT make the two runs
+    // RNG-identical — LooseRock consumes the RNG stream differently than Dirt
+    // (it rolls RockSlideChance on every blocked tick in addition to the
+    // tie-break roll), so the runs diverge regardless of seed. Instead of
+    // implying strict isolation via one shared seed, assert the shape
+    // property holds across several independent seeds, which is what the
+    // material rule actually promises.
+    [Theory]
+    [InlineData(3)]
+    [InlineData(7)]
+    [InlineData(11)]
+    public void RockPile_IsMeasurablySteeperAndNarrower_ThanDirtPile(int seed)
     {
-        // Same drop count, same seed, same geometry — only the material
-        // differs, so any shape difference is the material rule.
         const int dropsPerPile = 15;
 
         var dirtGrid = FlatFloorGrid(40);
-        var dirtSim = new Simulation(dirtGrid, seed: 7);
+        var dirtSim = new Simulation(dirtGrid, seed);
         for (int i = 0; i < dropsPerPile; i++)
         {
             dirtSim.Drop(20, 0, CellMaterial.Dirt);
@@ -59,7 +67,7 @@ public class MaterialBehaviorTests
         }
 
         var rockGrid = FlatFloorGrid(40);
-        var rockSim = new Simulation(rockGrid, seed: 7);
+        var rockSim = new Simulation(rockGrid, seed);
         for (int i = 0; i < dropsPerPile; i++)
         {
             rockSim.Drop(20, 0, CellMaterial.LooseRock);
@@ -70,9 +78,9 @@ public class MaterialBehaviorTests
         var rock = PileShape(rockGrid, 20, CellMaterial.LooseRock);
 
         Assert.True(rock.occupiedColumns < dirt.occupiedColumns,
-            $"Rock pile ({rock.occupiedColumns} cols) should be narrower than dirt ({dirt.occupiedColumns} cols)");
+            $"Seed {seed}: rock pile ({rock.occupiedColumns} cols) should be narrower than dirt ({dirt.occupiedColumns} cols)");
         Assert.True(rock.centerHeight > dirt.centerHeight,
-            $"Rock pile (h={rock.centerHeight}) should be taller than dirt (h={dirt.centerHeight})");
+            $"Seed {seed}: rock pile (h={rock.centerHeight}) should be taller than dirt (h={dirt.centerHeight})");
     }
 
     [Fact]

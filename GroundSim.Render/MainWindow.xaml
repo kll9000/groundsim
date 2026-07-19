@@ -1,0 +1,13 @@
+<Window x:Class="GroundSim.Render.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="GroundSim" SizeToContent="WidthAndHeight" ResizeMode="CanMinimize"
+        Background="#181A22">
+    <StackPanel>
+        <Image x:Name="SurfaceImage"
+               RenderOptions.BitmapScalingMode="NearestNeighbor"
+               Stretch="None"/>
+        <TextBlock x:Name="StatusText" Foreground="#CCCCCC" FontFamily="Consolas"
+                   Margin="6,2" Text="starting..."/>
+    </StackPanel>
+</Window>

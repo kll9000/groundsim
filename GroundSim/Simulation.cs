@@ -17,6 +17,13 @@ public sealed class Simulation
 
     public int ActiveParticleCount => _active.Count;
 
+    /// <summary>
+    /// Read-only view of in-flight particles. Added in Phase 3 for the
+    /// renderer's awake/settled debug overlay; nothing in the simulation
+    /// reads this.
+    /// </summary>
+    public IReadOnlyList<Particle> ActiveParticles => _active;
+
     public Simulation(Grid grid, int seed = 42)
     {
         Grid = grid;

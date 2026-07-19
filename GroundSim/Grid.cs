@@ -26,10 +26,21 @@ public sealed class Grid
         _cells = new CellMaterial[width * height]; // all Air by default
     }
 
+    /// <summary>
+    /// Observational hook: fires whenever a cell's material is written.
+    /// Added in Phase 3 so a renderer can track dirty cells without polling
+    /// the grid. Purely additive — no simulation logic reads this.
+    /// </summary>
+    public event Action<int, int>? CellChanged;
+
     public CellMaterial this[int x, int y]
     {
         get => _cells[y * Width + x];
-        set => _cells[y * Width + x] = value;
+        set
+        {
+            _cells[y * Width + x] = value;
+            CellChanged?.Invoke(x, y);
+        }
     }
 
     public bool InBounds(int x, int y) => x >= 0 && x < Width && y >= 0 && y < Height;
