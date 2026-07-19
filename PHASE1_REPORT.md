@@ -79,16 +79,19 @@ at the dig site and a pile with a natural ~45° slope forms at the drop site:
 
 56/60 cycles completed — the other 4 digs hit undiggable rock at depth (expected).
 
-## 5. Test Suite (9 tests, all passing)
+## 5. Test Suite (10 tests, all passing)
 
 ```
-Passed!  - Failed: 0, Passed: 9, Skipped: 0, Total: 9, Duration: 116 ms
+Passed!  - Failed:     0, Passed:    10, Skipped:     0, Total:    10, Duration: 628 ms - GroundSim.Tests.dll (net10.0)
 ```
 
 - Dig converts Dirt → Air and returns the dug material; Air and Rock refuse (rock stays).
 - Test world has air above ground level and fully solid ground at/below it.
 - A dropped particle falls until it rests on the floor.
 - A particle blocked directly below slides diagonally and settles beside the obstacle.
+- A particle whose open diagonal sits behind a solid side cell does NOT cut through
+  the corner — it settles in place. (Added in Phase 1.5; discriminates the side-cell
+  check.)
 - 15 drops at one spot form a pile wider than 1 column with center height well under
   the drop count (a vertical tower fails this test).
 - Agent cycles form a trench at the dig site and a pile **above** the original surface
