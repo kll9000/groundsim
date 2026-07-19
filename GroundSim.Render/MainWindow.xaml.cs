@@ -6,23 +6,21 @@ using System.Windows.Media;
 namespace GroundSim.Render;
 
 /// <summary>
-/// Render loop host. The simulation and agents advance on a fixed tick rate
-/// (TickClock) while frames render as fast as the compositor asks — the two
-/// rates are fully decoupled. Controls: Space = pause, Up/Down = speed.
-///
-/// Phase 4 capstone demo: 8 agents quarry a pit into the ground and haul the
-/// spoil to drop columns on both sides, where piles physically settle and
-/// grow. Red = empty-handed agent, orange = carrying, yellow = falling
-/// particle.
+/// Render loop host for the live colony demo: the Queen founds the Home Room
+/// on screen, workers mature, rooms trigger and excavate, spoil piles settle
+/// outside. Simulation advances on a fixed TickClock; frames render on the
+/// compositor's cadence — fully decoupled (Phase 3 machinery, unchanged).
+/// Controls: Space = pause, Up/Down = speed.
 /// </summary>
 public partial class MainWindow : Window
 {
     private readonly Grid _grid;
     private readonly Simulation _sim;
+    private readonly Colony _colony;
     private readonly DirtyTracker _dirty;
-    private readonly TickClock _clock = new() { TicksPerSecond = 30 };
+    private readonly TickClock _clock = new() { TicksPerSecond = 60 };
     private readonly GridRenderer _renderer;
-    private readonly List<Agent> _agents = new();
+    private readonly HashSet<Room> _tintedRooms = new();
     private readonly Stopwatch _frameTimer = Stopwatch.StartNew();
     private int _lastDirtyCount;
 
@@ -30,14 +28,12 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        _grid = DemoWorld.Create(width: 200, height: 120, groundLevel: 70);
-        _sim = new Simulation(_grid);
+        (_grid, _sim, _colony) = ColonyScenario.Create();
         _dirty = new DirtyTracker(_grid);
         _renderer = new GridRenderer(_grid);
-        _agents.AddRange(DemoWorld.SpawnAgents(_grid, _sim, count: 8));
 
         SurfaceImage.Source = _renderer.Bitmap;
-        _renderer.DrawFull();
+        _renderer.DrawFull(_colony);
         _dirty.Clear(); // the full draw already covers everything written so far
 
         KeyDown += OnKeyDown;
@@ -52,31 +48,59 @@ public partial class MainWindow : Window
         int ticks = _clock.Advance(dt);
         for (int t = 0; t < ticks; t++)
         {
-            MarkMovables(); // old positions -> redrawn as background
-            foreach (var a in _agents) a.Tick();
-            _sim.Tick();    // settles/digs mark cells via Grid.CellChanged
-            MarkMovables(); // new positions -> overlays drawn there
+            MarkColonyEntities(); // old positions -> redrawn as background
+            _colony.Tick();
+            _sim.Tick();          // settles/digs mark cells via Grid.CellChanged
+            MarkColonyEntities(); // new positions -> overlays drawn there
+        }
+
+        // A newly-excavated room needs its whole area repainted once for the
+        // tint — its Air cells won't otherwise be dirty.
+        foreach (var room in _colony.Rooms)
+        {
+            if (room.Excavated && _tintedRooms.Add(room))
+            {
+                for (int y = room.Y0; y <= room.Y1; y++)
+                {
+                    for (int x = room.X0; x <= room.X1; x++) _dirty.Mark(x, y);
+                }
+            }
         }
 
         if (ticks > 0)
         {
-            _renderer.DrawFrame(_dirty.Cells, _sim, _agents);
+            _renderer.DrawFrame(_dirty.Cells, _sim, _colony);
             _lastDirtyCount = _dirty.Count;
             _dirty.Clear();
         }
 
-        int carrying = _agents.Count(a => a.Carried is not null);
-        StatusText.Text =
-            $"tps {_clock.TicksPerSecond:0}{(_clock.Paused ? " PAUSED" : "")}  " +
-            $"agents {_agents.Count} (carrying {carrying})  " +
-            $"active {_sim.ActiveParticleCount}  dirty {_lastDirtyCount}  " +
-            $"[Space] pause  [Up/Down] speed";
+        UpdateStatus();
     }
 
-    private void MarkMovables()
+    private void MarkColonyEntities()
     {
         _dirty.MarkParticles(_sim);
-        foreach (var a in _agents) _dirty.Mark(a.X, a.Y);
+        _dirty.Mark(_colony.Queen.X, _colony.Queen.Y);
+        foreach (var t in _colony.Tenders) _dirty.Mark(t.X, t.Y);
+        foreach (var f in _colony.Foragers) _dirty.Mark(f.X, f.Y);
+        foreach (var m in _colony.Majors) _dirty.Mark(m.X, m.Y);
+        foreach (var egg in _colony.Eggs) _dirty.Mark(egg.X, egg.Y);
+    }
+
+    private void UpdateStatus()
+    {
+        static string RoomState(Room? r) => r is null ? "—" : r.Excavated ? "done" : "digging";
+        var garden = _colony.GetRoom(RoomType.Garden);
+        var nursery = _colony.GetRoom(RoomType.Nursery);
+
+        StatusText.Text =
+            $"PROTOTYPE (untuned constants)  stage: {_colony.CurrentStage}  " +
+            $"T:{_colony.Tenders.Count} F:{_colony.Foragers.Count} M:{_colony.Majors.Count} eggs:{_colony.Eggs.Count}  " +
+            $"raw {_colony.RawMaterial:0.0}  farmed {_colony.FarmedResource:0.0}  " +
+            $"garden:{RoomState(garden)} nursery:{RoomState(nursery)}  " +
+            $"tps {_clock.TicksPerSecond:0}{(_clock.Paused ? " PAUSED" : "")}  " +
+            $"active {_sim.ActiveParticleCount}  dirty {_lastDirtyCount}  " +
+            $"[Space] pause  [Up/Down] speed";
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

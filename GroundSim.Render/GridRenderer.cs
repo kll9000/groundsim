@@ -5,12 +5,17 @@ namespace GroundSim.Render;
 
 /// <summary>
 /// Blits grid cells into a WriteableBitmap. Read-only over the simulation:
-/// it never mutates Grid or Simulation state.
+/// it never mutates Grid, Simulation, or Colony state.
 ///
-/// Rendering strategy: the full grid is drawn ONCE at startup; afterwards
-/// only dirty cells (from DirtyTracker) are redrawn each frame, then active
-/// particles are overlaid in a highlight color. Settled terrain costs zero
-/// per-frame draw time.
+/// Rendering strategy (Phase 3): the full grid is drawn ONCE at startup;
+/// afterwards only dirty cells are redrawn each frame, then dynamic entities
+/// are overlaid. Settled terrain costs zero per-frame draw time.
+///
+/// Phase 8 visual language (flat colors, no art assets):
+///   yellow = falling particle      pink   = Queen
+///   green  = Tender                blue   = Forager
+///   red    = Major                 pale dot = egg
+///   excavated rooms get a subtle per-type background tint.
 /// </summary>
 public sealed class GridRenderer
 {
@@ -21,15 +26,21 @@ public sealed class GridRenderer
 
     public WriteableBitmap Bitmap { get; }
 
-    /// <summary>Debug overlay color for in-flight (awake) particles.</summary>
     private static readonly Color AwakeColor = Color.FromRgb(255, 230, 40);
+    private static readonly Color QueenColor = Color.FromRgb(255, 80, 200);
+    private static readonly Color TenderColor = Color.FromRgb(90, 200, 120);
+    private static readonly Color ForagerColor = Color.FromRgb(80, 170, 255);
+    private static readonly Color MajorColor = Color.FromRgb(230, 65, 65);
+    private static readonly Color EggColor = Color.FromRgb(240, 240, 215);
 
-    private static readonly Color AgentColor = Color.FromRgb(230, 65, 65);
-    private static readonly Color AgentCarryingColor = Color.FromRgb(255, 150, 50);
+    private static readonly Color AirColor = Color.FromRgb(24, 26, 34);
+    private static readonly Color HomeTint = Color.FromRgb(44, 40, 56);
+    private static readonly Color GardenTint = Color.FromRgb(32, 54, 40);
+    private static readonly Color NurseryTint = Color.FromRgb(56, 46, 32);
 
     private static Color MaterialColor(CellMaterial m) => m switch
     {
-        CellMaterial.Air => Color.FromRgb(24, 26, 34),
+        CellMaterial.Air => AirColor,
         CellMaterial.Dirt => Color.FromRgb(133, 94, 61),
         CellMaterial.Rock => Color.FromRgb(96, 98, 104),
         CellMaterial.Grass => Color.FromRgb(88, 148, 68),
@@ -46,38 +57,60 @@ public sealed class GridRenderer
             grid.Width * CellSize, grid.Height * CellSize, 96, 96, PixelFormats.Bgr32, null);
     }
 
-    public void DrawFull()
+    public void DrawFull(Colony? colony = null)
     {
         for (int y = 0; y < _grid.Height; y++)
         {
             for (int x = 0; x < _grid.Width; x++)
             {
-                DrawCell(x, y, MaterialColor(_grid[x, y]));
+                DrawCell(x, y, CellColor(x, y, colony));
             }
         }
     }
 
-    /// <summary>Redraws only the given dirty cells from grid state, then overlays
-    /// particles and agents (red = empty-handed, orange = carrying).</summary>
+    /// <summary>Redraws only the given dirty cells from grid state (with room
+    /// tinting), then overlays particles, eggs, workers, and the queen.</summary>
     public void DrawFrame(
-        IReadOnlyCollection<(int X, int Y)> dirtyCells, Simulation sim,
-        IReadOnlyList<Agent>? agents = null)
+        IReadOnlyCollection<(int X, int Y)> dirtyCells, Simulation sim, Colony colony)
     {
         foreach (var (x, y) in dirtyCells)
         {
-            DrawCell(x, y, MaterialColor(_grid[x, y]));
+            DrawCell(x, y, CellColor(x, y, colony));
         }
         foreach (var p in sim.ActiveParticles)
         {
             DrawCell(p.X, p.Y, AwakeColor);
         }
-        if (agents is not null)
+        foreach (var egg in colony.Eggs)
         {
-            foreach (var a in agents)
+            DrawDot(egg.X, egg.Y, EggColor);
+        }
+        foreach (var t in colony.Tenders) DrawCell(t.X, t.Y, TenderColor);
+        foreach (var f in colony.Foragers) DrawCell(f.X, f.Y, ForagerColor);
+        foreach (var m in colony.Majors) DrawCell(m.X, m.Y, MajorColor);
+        DrawCell(colony.Queen.X, colony.Queen.Y, QueenColor);
+    }
+
+    /// <summary>Background color for a cell: material color, with excavated
+    /// rooms tinting their Air cells so "this is the Garden" reads visually.</summary>
+    private Color CellColor(int x, int y, Colony? colony)
+    {
+        var m = _grid[x, y];
+        if (m != CellMaterial.Air || colony is null) return MaterialColor(m);
+        foreach (var room in colony.Rooms)
+        {
+            if (room.Excavated && room.Contains(x, y))
             {
-                DrawCell(a.X, a.Y, a.Carried is null ? AgentColor : AgentCarryingColor);
+                return room.Type switch
+                {
+                    RoomType.Home => HomeTint,
+                    RoomType.Garden => GardenTint,
+                    RoomType.Nursery => NurseryTint,
+                    _ => AirColor,
+                };
             }
         }
+        return AirColor;
     }
 
     private void DrawCell(int x, int y, Color c)
@@ -92,5 +125,24 @@ public sealed class GridRenderer
         }
         var rect = new System.Windows.Int32Rect(x * CellSize, y * CellSize, CellSize, CellSize);
         Bitmap.WritePixels(rect, _cellPixels, CellSize * 4, 0);
+    }
+
+    /// <summary>A smaller centered marker (eggs), so stationary entities read
+    /// as objects sitting in a cell rather than filling it.</summary>
+    private void DrawDot(int x, int y, Color c)
+    {
+        const int inset = 1;
+        const int size = CellSize - 2 * inset;
+        var pixels = new byte[size * size * 4];
+        for (int i = 0; i < size * size; i++)
+        {
+            int o = i * 4;
+            pixels[o] = c.B;
+            pixels[o + 1] = c.G;
+            pixels[o + 2] = c.R;
+            pixels[o + 3] = 255;
+        }
+        var rect = new System.Windows.Int32Rect(x * CellSize + inset, y * CellSize + inset, size, size);
+        Bitmap.WritePixels(rect, pixels, size * 4, 0);
     }
 }

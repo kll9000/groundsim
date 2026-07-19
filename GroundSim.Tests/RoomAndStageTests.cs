@@ -86,6 +86,34 @@ public class RoomTests
     }
 }
 
+public class ColonyStageTests
+{
+    [Fact]
+    public void CurrentStage_TracksMilestonesThroughAllFourStages()
+    {
+        var (grid, sim) = ColonyTestWorld.Create();
+        var colony = Colony.Found(grid, sim,
+            new ColonyConfig { EggSurvivalChance = 0, EggLayIntervalTicks = 1_000_000 },
+            ColonyTestWorld.Chamber, startX: 56, startY: 29);
+
+        Assert.Equal(ColonyStage.Founding, colony.CurrentStage);
+
+        while (colony.Queen.State == QueenState.Founding)
+        {
+            colony.Tick();
+            sim.Tick();
+        }
+        Assert.Equal(ColonyStage.FirstBrood, colony.CurrentStage);
+
+        colony.Spawn(Caste.Tender, colony.HomeCenter.X, colony.HomeCenter.Y);
+        Assert.Equal(ColonyStage.Establishment, colony.CurrentStage);
+
+        colony.FarmedResource = colony.Config.GardenTriggerThreshold;
+        ColonyTestWorld.Run(colony, sim, 1);
+        Assert.Equal(ColonyStage.Expansion, colony.CurrentStage);
+    }
+}
+
 public class BehaviorRelocationTests
 {
     [Fact]

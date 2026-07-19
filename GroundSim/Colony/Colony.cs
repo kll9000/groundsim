@@ -30,6 +30,9 @@ public sealed class ColonyMilestones
 
 public readonly record struct OffspringOutcome(bool Survived, Caste Caste);
 
+/// <summary>The outline's colony stages 1–4 (5–6 are deferred scope).</summary>
+public enum ColonyStage { Founding, FirstBrood, Establishment, Expansion }
+
 /// <summary>
 /// The colony data model: queen, castes, eggs, resources, first-class rooms
 /// with trigger conditions, and per-tick orchestration. Resources are
@@ -74,6 +77,18 @@ public sealed class Colony
     /// Garden excavates; OnRoomExcavated repoints it at the Garden.</summary>
     public Func<Colony, (int X, int Y)> ProcessingSiteProvider { get; set; } = c => c.HomeCenter;
     public (int X, int Y) ProcessingSite => ProcessingSiteProvider(this);
+
+    /// <summary>Derived, read-only stage indicator (added in Phase 8 for the
+    /// status display — no behavior reads it). Stage boundaries follow the
+    /// outline: Founding until the Home Room exists, First Brood until the
+    /// first worker matures, Establishment until the first purpose-built room
+    /// triggers, Expansion from then on.</summary>
+    public ColonyStage CurrentStage =>
+        Milestones.HomeFoundedTick is null ? ColonyStage.Founding
+        : Milestones.FirstWorkerTick is null ? ColonyStage.FirstBrood
+        : Milestones.GardenTriggeredTick is null && Milestones.NurseryTriggeredTick is null
+            ? ColonyStage.Establishment
+        : ColonyStage.Expansion;
 
     public (int X0, int Y0, int X1, int Y1) HomeRoom => Rooms[0].Rect;
     public (int X, int Y) HomeCenter => Rooms[0].Center;
