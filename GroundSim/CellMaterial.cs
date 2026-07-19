@@ -11,4 +11,16 @@ public enum CellMaterial : byte
     Rock,
     Grass,
     Fungus,
+
+    /// <summary>
+    /// Loose surface rock debris. Unlike terrain Rock it is diggable/carryable,
+    /// and as a particle it resists diagonal sliding (steeper piles than dirt).
+    /// </summary>
+    LooseRock,
+
+    /// <summary>
+    /// A stick. Falls straight down and settles where it lands — never slides
+    /// diagonally, so stick drops stack rather than forming sloped piles.
+    /// </summary>
+    Stick,
 }

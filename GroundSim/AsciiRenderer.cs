@@ -12,6 +12,8 @@ public static class AsciiRenderer
         CellMaterial.Rock => '@',
         CellMaterial.Grass => '"',
         CellMaterial.Fungus => '%',
+        CellMaterial.LooseRock => 'o',
+        CellMaterial.Stick => '/',
         _ => '?',
     };
 

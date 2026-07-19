@@ -38,15 +38,31 @@ public sealed class Simulation
     }
 
     /// <summary>
+    /// Probability that a blocked LooseRock particle attempts a diagonal slide
+    /// on a given tick instead of settling immediately. Dirt always slides
+    /// when a diagonal is open; rock usually locks in place, producing
+    /// visibly steeper/narrower piles than dirt.
+    /// </summary>
+    public const double RockSlideChance = 0.25;
+
+    /// <summary>
     /// Advances all active particles by one step. Rules per particle:
     ///  1. If the cell below is Air, fall one cell.
-    ///  2. Else if a diagonal-down cell AND the side cell on that same side
-    ///     (same row as the particle) are both Air, slide to the diagonal.
-    ///     Requiring the side cell prevents cutting through a solid corner.
-    ///     When both sides are open, one is chosen randomly to avoid a
-    ///     directional bias in pile shapes.
+    ///  2. Else the material decides:
+    ///     - Stick: settle where it landed — sticks never slide diagonally.
+    ///     - LooseRock: with probability <see cref="RockSlideChance"/> try a
+    ///       diagonal slide (as dirt below); otherwise settle immediately.
+    ///     - Dirt (and anything else): if a diagonal-down cell AND the side
+    ///       cell on that same side (same row as the particle) are both Air,
+    ///       slide to the diagonal. Requiring the side cell prevents cutting
+    ///       through a solid corner. When both sides are open, one is chosen
+    ///       randomly to avoid a directional bias in pile shapes.
     ///  3. Else settle: write the material into the grid and deactivate.
     /// A particle at the bottom row settles in place.
+    ///
+    /// Concurrency note: multiple particles may share a cell mid-flight (the
+    /// grid only stores settled material). Settling checks for that — see
+    /// <see cref="Settle"/>.
     /// </summary>
     public void Tick()
     {
@@ -65,6 +81,18 @@ public sealed class Simulation
             {
                 p.Y = below;
                 _active[i] = p;
+                continue;
+            }
+
+            if (p.Material == CellMaterial.Stick)
+            {
+                Settle(i, p);
+                continue;
+            }
+
+            if (p.Material == CellMaterial.LooseRock && _rng.NextDouble() >= RockSlideChance)
+            {
+                Settle(i, p);
                 continue;
             }
 
@@ -110,6 +138,27 @@ public sealed class Simulation
 
     private void Settle(int index, Particle p)
     {
+        // With many particles in flight, another particle may have settled
+        // into this exact cell earlier in the same tick (in-flight particles
+        // are invisible to the grid). Never overwrite settled material:
+        // bump the particle up to the first Air cell and keep it ACTIVE so it
+        // re-evaluates falling/sliding from there next tick — this keeps
+        // concurrent drops forming natural pile shapes instead of freezing
+        // mid-air where the collision happened.
+        if (Grid[p.X, p.Y] != CellMaterial.Air)
+        {
+            while (p.Y >= 0 && Grid[p.X, p.Y] != CellMaterial.Air) p.Y--;
+            if (p.Y < 0)
+            {
+                // Whole column solid — discard the chunk (never hit in a
+                // world with open sky, but must not corrupt the grid).
+                _active.RemoveAt(index);
+                return;
+            }
+            _active[index] = p;
+            return;
+        }
+
         Grid[p.X, p.Y] = p.Material;
         _active.RemoveAt(index);
     }
