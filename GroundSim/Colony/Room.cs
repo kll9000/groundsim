@@ -79,6 +79,35 @@ public sealed class Room
     public bool Contains(int x, int y) => _cells.Contains((x, y));
 
     /// <summary>
+    /// The room's CURRENT usable floor site: the deepest Air cell (preferring
+    /// cells resting on solid) nearest the center column, computed live
+    /// against the grid. Phase 12: fixed cells like FloorCenter can be buried
+    /// by mound spill settling inside the room — a work target must adapt to
+    /// what the floor actually is right now.
+    /// </summary>
+    public (int X, int Y) FloorSite(Grid grid)
+    {
+        int cx = (X0 + X1) / 2;
+        (int X, int Y)? bestResting = null, bestAir = null;
+        int restingKey = int.MinValue, airKey = int.MinValue;
+        foreach (var (x, y) in _cells)
+        {
+            if (!grid.IsAir(x, y)) continue;
+            int key = y * 1000 - Math.Abs(x - cx);
+            if (!grid.IsAir(x, y + 1))
+            {
+                if (key > restingKey) { restingKey = key; bestResting = (x, y); }
+            }
+            else if (key > airKey)
+            {
+                airKey = key;
+                bestAir = (x, y);
+            }
+        }
+        return bestResting ?? bestAir ?? FloorCenter;
+    }
+
+    /// <summary>
     /// True while any FRONTIER-REACHABLE diggable cell remains (same
     /// accessible-frontier semantics as DigSite.HasRemainingDiggable): rock
     /// pillars and dirt pockets sealed behind rock are tolerated as natural

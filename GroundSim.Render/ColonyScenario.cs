@@ -18,9 +18,9 @@ public static class ColonyScenario
         var grid = Grid.CreateTestWorld(Width, Height, GroundLevel, seed);
         var sim = new Simulation(grid, seed);
 
-        var chamber = (X0: 92, Y0: GroundLevel, X1: 100, Y1: GroundLevel + 3);
-        var colony = Colony.Found(grid, sim, new ColonyConfig(), chamber,
-            startX: 96, startY: GroundLevel - 1, seed);
+        // Phase 12: organic founding — entrance shaft + home chamber,
+        // spoil mounding around the shaft mouth.
+        var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 96, seed);
 
         // Modest caps + default regeneration (Phase 9): patches visibly
         // deplete and regrow instead of the colony running dry.

@@ -6,12 +6,13 @@ public enum QueenState { Founding, Laying }
 /// The colony's origin. NOT an Agent subtype: after founding she never moves,
 /// digs, or carries again — she only lays eggs.
 ///
-/// Founding transition (flagged design decision): during Founding she
-/// COMPOSES a temporary Agent to excavate the Home Room cell-by-cell with
-/// real physics (spoil hauled out and dropped). When the chamber is fully
-/// excavated and the agent is empty-handed, the agent is discarded entirely,
-/// she settles at the chamber center, deposits the starter resource, and
-/// enters Laying — from which no code path moves her again.
+/// Founding: she composes a temporary Agent that excavates the founding
+/// DigSite (Phase 12: an entrance shaft + organic home chamber; the rect
+/// fallback uses the same machinery). Completion uses the frontier-accessible
+/// rule (Phase 9.5b semantics via DigSite.HasRemainingDiggable), then the
+/// agent is discarded entirely, she settles at the chamber's floor center,
+/// deposits the starter resource, and enters Laying — from which no code
+/// path moves her again.
 /// </summary>
 public sealed class Queen
 {
@@ -20,18 +21,22 @@ public sealed class Queen
     public QueenState State { get; private set; }
 
     private Agent? _foundingAgent;
-    private int _layTimer;
-    private readonly (int X0, int Y0, int X1, int Y1) _chamber;
 
-    public Queen(Grid grid, Simulation sim, (int X0, int Y0, int X1, int Y1) chamber,
-        int startX, int startY, int spoilDropX)
+    /// <summary>Read-only introspection of the founding agent (diagnostics/tests).</summary>
+    public Agent? FoundingAgent => _foundingAgent;
+    private readonly DigSite? _foundingSite;
+    private readonly (int X, int Y) _settlePoint;
+    private int _layTimer;
+
+    /// <summary>A founding queen: digs out the site, then settles at
+    /// settlePoint permanently.</summary>
+    public Queen(DigSite foundingSite, (int X, int Y) settlePoint, int startX, int startY)
     {
-        _chamber = chamber;
+        _foundingSite = foundingSite;
+        _settlePoint = settlePoint;
         X = startX;
         Y = startY;
         State = QueenState.Founding;
-        _foundingAgent = new Agent(grid, sim, new HashSet<(int, int)>(),
-            startX, startY, chamber, spoilDropX);
     }
 
     /// <summary>Test/Phase-7 constructor: an already-founded queen, stationary at (x, y).</summary>
@@ -39,8 +44,8 @@ public sealed class Queen
     {
         X = x;
         Y = y;
+        _settlePoint = (x, y);
         State = QueenState.Laying;
-        _chamber = (x, y, x, y);
     }
 
     public void Tick(Colony colony)
@@ -62,33 +67,23 @@ public sealed class Queen
 
     private void TickFounding(Colony colony)
     {
-        var agent = _foundingAgent!;
-        agent.Tick();
-        X = agent.X;
-        Y = agent.Y;
+        // Lazily created so her spoil deliveries use the colony's mound
+        // drop-point provider like every other digger.
+        _foundingAgent ??= new Agent(colony.Grid, colony.Sim, new HashSet<(int, int)>(),
+            X, Y, _foundingSite!.Cells, colony.NextSpoilDropX);
 
-        if (agent.Carried is null && ChamberFullyExcavated(colony.Grid))
+        _foundingAgent.Tick();
+        X = _foundingAgent.X;
+        Y = _foundingAgent.Y;
+
+        if (_foundingAgent.Carried is null && !_foundingSite!.HasRemainingDiggable(colony.Grid))
         {
             // Settle permanently: discard the dig machinery, deposit starter.
             _foundingAgent = null;
-            // Settle on the chamber FLOOR (Phase 9 terrain-following) — she
-            // shouldn't hover at the pit's geometric center.
-            (X, Y) = ((_chamber.X0 + _chamber.X1) / 2, _chamber.Y1);
+            (X, Y) = _settlePoint;
             colony.FarmedResource += colony.Config.StarterResource;
             colony.NotifyHomeFounded();
             State = QueenState.Laying;
         }
-    }
-
-    private bool ChamberFullyExcavated(Grid grid)
-    {
-        for (int y = _chamber.Y0; y <= _chamber.Y1; y++)
-        {
-            for (int x = _chamber.X0; x <= _chamber.X1; x++)
-            {
-                if (grid[x, y] != CellMaterial.Air) return false;
-            }
-        }
-        return true;
     }
 }

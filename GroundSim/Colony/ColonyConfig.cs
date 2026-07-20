@@ -94,6 +94,35 @@ public sealed class ColonyConfig
     /// fallback (Part C hardening).</summary>
     public int MaskRetryAttempts { get; init; } = 6;
 
+    // ---- Phase 12: founding shaft + home chamber + spoil mound (INVENTED) ----
+
+    /// <summary>Entrance-shaft length bounds (cells) from the surface to the
+    /// founding chamber.</summary>
+    public int ShaftMinLength { get; init; } = 8;
+    public int ShaftMaxLength { get; init; } = 12;
+
+    /// <summary>Shaft wobble — near-zero so the entrance reads as a direct
+    /// vertical hole (≈1.7°/4.6°), unlike the winding lateral corridors.</summary>
+    public double ShaftTurnJitter { get; init; } = 0.03;
+    public double ShaftMaxDeviation { get; init; } = 0.08;
+
+    /// <summary>Founding-chamber footprint (cells) — smaller than worker-dug
+    /// rooms; the Queen digs it alone.</summary>
+    public int HomeChamberMinArea { get; init; } = 25;
+    public int HomeChamberMaxArea { get; init; } = 35;
+
+    /// <summary>Spoil-mound drop offsets: deliveries alternate sides of the
+    /// entrance at (opening half-width + 1 + rand(0..MoundDropRange)) columns,
+    /// so the pile builds symmetrically around the hole.</summary>
+    public int MoundDropRange { get; init; } = 5;
+
+    /// <summary>Adaptive mound spreading: when a candidate drop column's pile
+    /// is already this many cells above the original surface, the drop point
+    /// walks outward to the next lower column. Without a cap, the inner slope
+    /// grows until it continuously drains back down the entrance shaft and
+    /// excavation reaches equilibrium with the refill (measured stall).</summary>
+    public int MoundMaxHeight { get; init; } = 4;
+
     /// <summary>Buffer margin (cells) kept between new masks and existing
     /// rooms, except at the deliberate tunnel connection.</summary>
     public int RoomOverlapBuffer { get; init; } = 1;

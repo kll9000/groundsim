@@ -38,8 +38,8 @@ public class SupportRuleImplementationPinTests
         {
             var grid = Grid.CreateTestWorld(120, 60, groundLevel: 30, seed: seed);
             var sim = new Simulation(grid, seed: seed);
-            var colony = Colony.Found(grid, sim, new ColonyConfig(),
-                ColonyTestWorld.Chamber, startX: 56, startY: 29, seed: seed);
+            // Phase 12: organic founding — covers the shaft+chamber home shape.
+            var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 56, seed: seed);
             colony.Nodes.Add(new ResourceNode(15, 29, 500));
             colony.Nodes.Add(new ResourceNode(105, 29, 500));
 
@@ -70,8 +70,8 @@ public class SupportRuleImplementationPinTests
         {
             var grid = Grid.CreateTestWorld(120, 60, groundLevel: 30, seed: seed);
             var sim = new Simulation(grid, seed: seed);
-            var colony = Colony.Found(grid, sim, new ColonyConfig(),
-                ColonyTestWorld.Chamber, startX: 56, startY: 29, seed: seed);
+            // Phase 12: organic founding — covers the shaft+chamber home shape.
+            var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 56, seed: seed);
             colony.Nodes.Add(new ResourceNode(15, 29, 500));
             colony.Nodes.Add(new ResourceNode(105, 29, 500));
 

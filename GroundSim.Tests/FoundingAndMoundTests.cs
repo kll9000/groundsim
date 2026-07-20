@@ -1,0 +1,158 @@
+using GroundSim;
+
+namespace GroundSim.Tests;
+
+public class FoundingShapeTests
+{
+    [Fact]
+    public void FoundingPlan_ProducesConnectedShaftAndChamber_NotARect()
+    {
+        var grid = Grid.CreateTestWorld(120, 60, groundLevel: 30, seed: 5);
+        var plan = OrganicPlanner.PlanFounding(grid, entranceX: 56, new ColonyConfig(), new Random(5));
+
+        Assert.False(plan.UsedFallback, "fresh ground: organic founding should succeed");
+        var site = plan.Site.Cells.ToHashSet();
+
+        // Connected as one excavation (chimney included — it shares columns
+        // with the shaft mouth).
+        var seen = new HashSet<(int, int)> { site.First() };
+        var queue = new Queue<(int, int)>(seen);
+        while (queue.Count > 0)
+        {
+            var (x, y) = queue.Dequeue();
+            foreach (var n in new[] { (x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1) })
+            {
+                if (site.Contains(n) && seen.Add(n)) queue.Enqueue(n);
+            }
+        }
+        Assert.Equal(site.Count, seen.Count);
+
+        // The shaft (below-surface site cells above the chamber) is narrow
+        // and straight: per-row width ≤ 3 and total horizontal wander ≤ 4 —
+        // meaningfully tighter than lateral tunnels (jitter 0.15/dev 0.55
+        // vs the shaft's 0.03/0.08).
+        int chamberTop = plan.HomeRoom.Y0;
+        var shaftRows = site.Where(c => c.Y >= 30 && c.Y < chamberTop)
+            .GroupBy(c => c.Y).ToList();
+        Assert.True(shaftRows.Count >= 5, "a real shaft spans multiple rows");
+        foreach (var row in shaftRows)
+        {
+            Assert.True(row.Count() <= 3, $"shaft row y={row.Key} is {row.Count()} wide — not a narrow shaft");
+        }
+        int minX = shaftRows.SelectMany(r => r).Min(c => c.X);
+        int maxX = shaftRows.SelectMany(r => r).Max(c => c.X);
+        Assert.True(maxX - minX <= 4, $"shaft wanders {maxX - minX} columns — should be near-vertical");
+
+        // The chamber is a real blob at depth, below the shaft.
+        Assert.InRange(plan.HomeRoom.Cells.Count, 12, 60);
+        Assert.True(plan.HomeRoom.Y0 >= 34, "chamber sits below a real shaft length");
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(7)]
+    [InlineData(10)]
+    public void OrganicFounding_QueenCompletes_AndPhase6GuaranteesHold(int seed)
+    {
+        // Includes the three seeds that livelocked before the unreachable-
+        // target blacklist fix (2, 7, 10).
+        var grid = Grid.CreateTestWorld(120, 60, groundLevel: 30, seed: seed);
+        var sim = new Simulation(grid, seed: seed);
+        var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 56, seed: seed);
+
+        int t = 0;
+        while (colony.Queen.State == QueenState.Founding && t < 30_000)
+        {
+            colony.Tick();
+            sim.Tick();
+            t++;
+        }
+        Assert.Equal(QueenState.Laying, colony.Queen.State);
+        Assert.NotNull(colony.Milestones.HomeFoundedTick);
+        Assert.Equal(colony.Config.StarterResource, colony.FarmedResource);
+        Assert.True(grid.IsAir(colony.Queen.X, colony.Queen.Y), "queen settled in a real air cell");
+        Assert.True(colony.Rooms[0].Contains(colony.Queen.X, colony.Queen.Y), "queen settled inside the home chamber");
+
+        // Never moves again (Phase 6 guarantee).
+        var pos = (colony.Queen.X, colony.Queen.Y);
+        ColonyTestWorld.Run(colony, sim, 3000);
+        Assert.Equal(pos, (colony.Queen.X, colony.Queen.Y));
+        Assert.Equal(QueenState.Laying, colony.Queen.State);
+    }
+
+    [Fact]
+    public void FoundingFallback_Engages_AndFoundingStillCompletes()
+    {
+        // Force organic failure: carve everything below the surface to air
+        // so every chamber candidate fails the fresh-ground check. The
+        // fallback rect at the surface still contains its top row of real
+        // material only where uncarved — use a shallower carve so the
+        // fallback rect (surface..+3) keeps real dirt to dig.
+        var grid = Grid.CreateTestWorld(120, 60, groundLevel: 30, seed: 4);
+        for (int y = 36; y < 60; y++)
+        {
+            for (int x = 5; x < 115; x++) grid[x, y] = CellMaterial.Air;
+        }
+
+        var plan = OrganicPlanner.PlanFounding(grid, entranceX: 56, new ColonyConfig(), new Random(4));
+        Assert.True(plan.UsedFallback, "no room for a shaft+chamber: must fall back to the rect");
+
+        var sim = new Simulation(grid, seed: 4);
+        var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 56, seed: 4);
+        int t = 0;
+        while (colony.Queen.State == QueenState.Founding && t < 30_000)
+        {
+            colony.Tick();
+            sim.Tick();
+            t++;
+        }
+        Assert.Equal(QueenState.Laying, colony.Queen.State);
+        Assert.NotNull(colony.Milestones.HomeFoundedTick);
+    }
+}
+
+public class SpoilMoundTests
+{
+    [Fact]
+    public void Spoil_BuildsOnBothSidesOfTheEntrance_NotOneFixedColumn()
+    {
+        var grid = Grid.CreateTestWorld(120, 60, groundLevel: 30, seed: 6);
+        var sim = new Simulation(grid, seed: 6);
+        var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 56, seed: 6);
+        colony.Nodes.Add(new ResourceNode(15, 29, 10_000));
+        colony.Nodes.Add(new ResourceNode(105, 29, 10_000));
+
+        // Through founding and at least the garden excavation.
+        int t = 0;
+        while (t < 40_000 && colony.Milestones.GardenExcavatedTick is null)
+        {
+            colony.Tick();
+            sim.Tick();
+            t++;
+        }
+        Assert.NotNull(colony.Milestones.GardenExcavatedTick);
+
+        // Settled material ABOVE the original surface (y < 30), per column.
+        var perColumn = new Dictionary<int, int>();
+        int left = 0, right = 0, total = 0;
+        for (int x = 0; x < grid.Width; x++)
+        {
+            for (int y = 0; y < 30; y++)
+            {
+                var m = grid[x, y];
+                if (m == CellMaterial.Air) continue;
+                total++;
+                perColumn[x] = perColumn.GetValueOrDefault(x) + 1;
+                if (x < colony.EntranceX) left++;
+                else if (x > colony.EntranceX) right++;
+            }
+        }
+
+        Assert.True(total >= 60, $"expected substantial surface spoil, found {total} cells");
+        Assert.True(left >= total / 5, $"left of entrance holds only {left}/{total} spoil cells — lopsided");
+        Assert.True(right >= total / 5, $"right of entrance holds only {right}/{total} spoil cells — lopsided");
+        Assert.True(perColumn.Count >= 8, $"spoil spread across only {perColumn.Count} columns");
+        Assert.True(perColumn.Values.Max() < total / 2,
+            "more than half the spoil sits in a single column — a spike, not a mound");
+    }
+}

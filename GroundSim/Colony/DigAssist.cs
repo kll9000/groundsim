@@ -44,7 +44,7 @@ public sealed class DigAssist
         {
             _agent?.ReleaseClaims();
             _site = site;
-            _agent = new Agent(grid, colony.Sim, colony.DigClaims, x, y, site.Cells, colony.SpoilDropX);
+            _agent = new Agent(grid, colony.Sim, colony.DigClaims, x, y, site.Cells, colony.NextSpoilDropX);
         }
 
         _agent.Tick();

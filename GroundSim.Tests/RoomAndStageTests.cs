@@ -182,7 +182,7 @@ public class EndToEndStageTests
         // below are measured but built on INVENTED ColonyConfig constants —
         // placeholders until game.js values arrive.
         const int seeds = 10;
-        const int maxTicks = 40_000;
+        const int maxTicks = 60_000; // Phase 12: organic founding + mound churn dig slower
         var firstWorker = new List<int>();
         var gardenDone = new List<int>();
         var nurseryDone = new List<int>();
@@ -191,8 +191,8 @@ public class EndToEndStageTests
         {
             var grid = Grid.CreateTestWorld(120, 60, groundLevel: 30, seed: seed);
             var sim = new Simulation(grid, seed: seed);
-            var colony = Colony.Found(grid, sim, new ColonyConfig(),
-                ColonyTestWorld.Chamber, startX: 56, startY: 29, seed: seed);
+            // Phase 12: organic founding (shaft + chamber) — the product path.
+            var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 56, seed: seed);
             colony.Nodes.Add(new ResourceNode(15, 29, 10_000));
             colony.Nodes.Add(new ResourceNode(105, 29, 10_000));
 
@@ -223,8 +223,19 @@ public class EndToEndStageTests
                 $"seed {seed}: Nursery not excavated within {maxTicks} ticks");
             Assert.True(colony.GetRoom(RoomType.Garden)!.Excavated);
             Assert.True(colony.GetRoom(RoomType.Nursery)!.Excavated);
+            // Phase 12: the processing site is live-computed (spill can bury
+            // fixed cells). It must be a real air cell inside the garden —
+            // or, when the garden currently has no usable air floor cell,
+            // the designed resilience fallback to the Home Room.
             var g = colony.GetRoom(RoomType.Garden)!;
-            Assert.Equal(g.FloorCenter, colony.ProcessingSite); // Phase 11: organic-aware floor center
+            var site = colony.ProcessingSite;
+            Assert.True(grid.IsAir(site.X, site.Y), $"seed {seed}: processing site {site} is buried");
+            bool gardenUsable = g.Cells.Any(c => grid.IsAir(c.X, c.Y) && !grid.IsAir(c.X, c.Y + 1));
+            if (gardenUsable)
+            {
+                Assert.True(g.Contains(site.X, site.Y),
+                    $"seed {seed}: garden is usable but processing site {site} is outside it");
+            }
 
             firstWorker.Add(m.FirstWorkerTick!.Value);
             gardenDone.Add(m.GardenExcavatedTick!.Value);

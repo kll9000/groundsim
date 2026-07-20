@@ -71,7 +71,51 @@ public sealed class Colony
     /// (arbitrary cell mask — tunnel + chamber), no longer a rect.</summary>
     public DigSite? ActiveDigSite { get; set; }
 
-    public int SpoilDropX { get; set; }
+    /// <summary>Test override: when set, ALL spoil goes to this fixed column
+    /// (pre-Phase-12 behavior). Null (default) = mound mode: deliveries
+    /// alternate sides of the entrance at randomized offsets.</summary>
+    public int? SpoilDropX { get; set; }
+
+    /// <summary>The surface entrance column (shaft mouth for organic
+    /// founding; chamber center for rect founding).</summary>
+    public int EntranceX { get; }
+
+    private readonly int _entranceHalfWidth;
+    private readonly int _originalSurfaceY;
+    private bool _spoilLeft;
+
+    /// <summary>Per-delivery spoil drop column (Phase 12): alternates left/
+    /// right of the entrance at (opening half-width + 1 + rand offset), so
+    /// the existing falling-sand physics builds a symmetric mound around the
+    /// hole the material came out of. Colony-wide — founding Queen, room
+    /// crews, and Majors all target the same mound. Adaptive spread: columns
+    /// already piled MoundMaxHeight above the original surface are skipped
+    /// outward, so the mound widens instead of feeding its inner slope back
+    /// down the shaft.</summary>
+    public int NextSpoilDropX()
+    {
+        if (SpoilDropX is { } fixedX) return fixedX;
+        _spoilLeft = !_spoilLeft;
+        int baseOffset = _entranceHalfWidth + 1 + _rng.Next(Config.MoundDropRange);
+        for (int o = baseOffset; o < baseOffset + 40; o++)
+        {
+            int x = Math.Clamp(EntranceX + (_spoilLeft ? -o : o), 1, Grid.Width - 2);
+            int surf = 0;
+            while (surf < Grid.Height && Grid.IsAir(x, surf)) surf++;
+            if (_originalSurfaceY - surf < Config.MoundMaxHeight) return x;
+        }
+        return Math.Clamp(EntranceX + (_spoilLeft ? -(baseOffset + 40) : baseOffset + 40), 1, Grid.Width - 2);
+    }
+
+    /// <summary>Standing maintenance digs (Phase 12): every completed
+    /// excavation — the founding shaft+chamber AND each room's tunnel+chamber
+    /// — stays registered here. Mound spill that rolls back down the entrance
+    /// re-plugs these passages, and no active room site covers them; without
+    /// maintenance the colony's arteries close permanently (measured twice:
+    /// first the shaft, then the garden's connecting tunnel — which froze
+    /// processing at the garden forever). Maintenance preempts room digs.</summary>
+    public List<DigSite> MaintenanceSites { get; } = new();
+
     public HashSet<(int X, int Y)> DigClaims { get; } = new();
 
     /// <summary>Where Tenders process. Home Room center until the Fungus
@@ -93,33 +137,58 @@ public sealed class Colony
 
     public (int X0, int Y0, int X1, int Y1) HomeRoom => Rooms[0].Rect;
 
-    /// <summary>The Home Room's floor-center cell. Phase 9: fixed colony
-    /// sites live on room FLOORS — with terrain-following movement a mid-air
-    /// "center" would be a cell agents immediately fall out of.</summary>
-    public (int X, int Y) HomeCenter => (Rooms[0].Center.X, Rooms[0].Y1);
+    /// <summary>The Home Room's current usable floor site (live-computed:
+    /// mound spill can bury any fixed cell). Fixed colony sites live on room
+    /// FLOORS — with terrain-following movement a mid-air "center" would be
+    /// a cell agents fall out of.</summary>
+    public (int X, int Y) HomeCenter => Rooms[0].FloorSite(Grid);
 
     private readonly Random _rng;
 
     private Colony(Grid grid, Simulation sim, ColonyConfig config,
-        (int X0, int Y0, int X1, int Y1) homeRect, bool homeExcavated, Queen queen, int seed)
+        Room homeRoom, Queen queen, int seed, int entranceX, int entranceHalfWidth,
+        int originalSurfaceY, DigSite? homeMaintenanceSite)
     {
         Grid = grid;
         Sim = sim;
         Config = config;
-        Rooms.Add(new Room(RoomType.Home, homeRect.X0, homeRect.Y0, homeRect.X1, homeRect.Y1, homeExcavated));
+        Rooms.Add(homeRoom);
         Queen = queen;
         _rng = new Random(seed);
-        SpoilDropX = Math.Min(grid.Width - 1, homeRect.X1 + 20);
+        EntranceX = entranceX;
+        _entranceHalfWidth = entranceHalfWidth;
+        _originalSurfaceY = originalSurfaceY;
+        if (homeMaintenanceSite is not null) MaintenanceSites.Add(homeMaintenanceSite);
     }
 
-    /// <summary>A founding colony: the queen starts at (startX, startY) and
-    /// excavates the home chamber herself before settling.</summary>
+    /// <summary>A founding colony (Phase 12): the queen excavates an
+    /// entrance shaft + organic home chamber below entranceX (planner
+    /// fallback: the old simple rect), then settles.</summary>
+    public static Colony Found(Grid grid, Simulation sim, ColonyConfig config,
+        int entranceX, int seed = 1234)
+    {
+        var plan = OrganicPlanner.PlanFounding(grid, entranceX, config, new Random(seed));
+        var queen = new Queen(plan.Site, plan.HomeRoom.FloorCenter, plan.Entrance.X, plan.Entrance.Y);
+        return new Colony(grid, sim, config, plan.HomeRoom, queen, seed,
+            plan.Entrance.X, plan.EntranceHalfWidth,
+            originalSurfaceY: plan.Entrance.Y + 1, homeMaintenanceSite: plan.Site);
+    }
+
+    /// <summary>Rect-founding overload (the fallback shape, dug for real) —
+    /// kept for regression tests of the founding state machine.</summary>
     public static Colony Found(Grid grid, Simulation sim, ColonyConfig config,
         (int X0, int Y0, int X1, int Y1) chamber, int startX, int startY, int seed = 1234)
     {
-        int spoilDropX = Math.Min(grid.Width - 1, chamber.X1 + 20);
-        var queen = new Queen(grid, sim, chamber, startX, startY, spoilDropX);
-        return new Colony(grid, sim, config, chamber, homeExcavated: false, queen, seed);
+        var room = new Room(RoomType.Home, chamber.X0, chamber.Y0, chamber.X1, chamber.Y1);
+        var rectCells = new HashSet<(int, int)>(room.Cells);
+        OrganicPlanner.AddChimney(rectCells, grid, (chamber.X0 + chamber.X1) / 2, chamber.Y0);
+        var site = new DigSite(rectCells);
+        var queen = new Queen(site,
+            ((chamber.X0 + chamber.X1) / 2, chamber.Y1), startX, startY);
+        return new Colony(grid, sim, config, room, queen, seed,
+            entranceX: (chamber.X0 + chamber.X1) / 2,
+            entranceHalfWidth: (chamber.X1 - chamber.X0) / 2 + 1,
+            originalSurfaceY: chamber.Y0, homeMaintenanceSite: site);
     }
 
     /// <summary>An already-founded colony (chamber carved instantly, starter
@@ -136,8 +205,13 @@ public sealed class Colony
             }
         }
         // Queen rests on the chamber floor (Phase 9 terrain-following).
-        var colony = new Colony(grid, sim, config, chamber, homeExcavated: true,
-            new Queen((chamber.X0 + chamber.X1) / 2, chamber.Y1), seed);
+        var room = new Room(RoomType.Home, chamber.X0, chamber.Y0, chamber.X1, chamber.Y1, excavated: true);
+        var colony = new Colony(grid, sim, config, room,
+            new Queen((chamber.X0 + chamber.X1) / 2, chamber.Y1), seed,
+            entranceX: (chamber.X0 + chamber.X1) / 2,
+            entranceHalfWidth: (chamber.X1 - chamber.X0) / 2 + 1,
+            originalSurfaceY: chamber.Y0,
+            homeMaintenanceSite: MaintenanceSiteForRect(grid, chamber));
         colony.FarmedResource = config.StarterResource;
         colony.Milestones.HomeFoundedTick = 0;
         return colony;
@@ -172,6 +246,13 @@ public sealed class Colony
     // ---- rooms & triggers ----
 
     public Room? GetRoom(RoomType type) => Rooms.FirstOrDefault(r => r.Type == type);
+
+    private static DigSite MaintenanceSiteForRect(Grid grid, (int X0, int Y0, int X1, int Y1) chamber)
+    {
+        var cells = new HashSet<(int, int)>(DigSite.FromRect(chamber.X0, chamber.Y0, chamber.X1, chamber.Y1).Cells);
+        OrganicPlanner.AddChimney(cells, grid, (chamber.X0 + chamber.X1) / 2, chamber.Y0);
+        return new DigSite(cells);
+    }
 
     private void UpdateRoomTriggers()
     {
@@ -209,6 +290,24 @@ public sealed class Colony
 
     private void ManageExcavation()
     {
+        // Maintenance preempts room digs: spill re-plugging any completed
+        // passage (entrance shaft, room tunnels) must be cleared or the
+        // colony's arteries close permanently (see MaintenanceSites).
+        if (Rooms[0].Excavated)
+        {
+            var blocked = MaintenanceSites.FirstOrDefault(s => s.HasRemainingDiggable(Grid));
+            if (blocked is not null && !ReferenceEquals(ActiveDigSite, blocked))
+            {
+                ActiveDigSite = blocked;
+                return;
+            }
+        }
+        if (ActiveDigSite is not null && MaintenanceSites.Contains(ActiveDigSite))
+        {
+            if (!ActiveDigSite.HasRemainingDiggable(Grid)) ActiveDigSite = null;
+            return;
+        }
+
         if (ActiveDigSite is null)
         {
             var pending = Rooms.FirstOrDefault(r => !r.Excavated && r.Type != RoomType.Home && r.PendingDig is not null);
@@ -220,6 +319,9 @@ public sealed class Colony
         if (digging is not null && !ActiveDigSite.HasRemainingDiggable(Grid))
         {
             digging.Excavated = true;
+            // The room's dig site (tunnel + chamber) becomes a standing
+            // maintenance responsibility from here on.
+            MaintenanceSites.Add(ActiveDigSite);
             digging.PendingDig = null;
             ActiveDigSite = null;
             OnRoomExcavated(digging);
@@ -232,9 +334,16 @@ public sealed class Colony
         {
             case RoomType.Garden:
                 // The Phase 6 seam doing its job: relocate processing with
-                // zero Tender code changes. FloorCenter = the room's deepest
-                // center-column cell (organic-shape aware, Phase 11).
-                ProcessingSiteProvider = c => room.FloorCenter;
+                // zero Tender code changes. Live floor site (Phase 12): the
+                // fixed floor-center can be buried by mound spill settling
+                // inside the chamber, which froze processing permanently.
+                // Resilience: if the garden currently has NO usable air cell,
+                // fall back to the Home Room rather than stalling the economy.
+                ProcessingSiteProvider = c =>
+                {
+                    var s = room.FloorSite(c.Grid);
+                    return c.Grid.IsAir(s.X, s.Y) ? s : c.HomeCenter;
+                };
                 Milestones.GardenExcavatedTick ??= TickCount;
                 break;
             case RoomType.Nursery:
@@ -295,6 +404,7 @@ public sealed class Colony
     {
         var room = GetRoom(RoomType.Nursery) is { Excavated: true } nursery ? nursery : Rooms[0];
         var (x, y) = RandomRestingCellIn(room);
+        if (!Grid.IsAir(x, y)) (x, y) = HomeCenter; // room unusable: lay at home
         Eggs.Add(new Egg(x, y, Config.EggMaturationTicks));
         TotalEggsLaid++;
     }
