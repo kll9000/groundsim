@@ -107,7 +107,7 @@ public static class OrganicPlanner
             var parentAir = new HashSet<(int, int)>(parent.Cells.Where(c => grid.IsAir(c.X, c.Y)));
             int junction = tunnel.Count(c =>
                 grid.InBounds(c.X, c.Y)
-                && grid[c.X, c.Y] != CellMaterial.Air && grid[c.X, c.Y] != CellMaterial.Rock
+                && grid[c.X, c.Y] != CellMaterial.Air // Phase 13: rock is diggable, counts as junction
                 && (parentAir.Contains((c.X - 1, c.Y)) || parentAir.Contains((c.X + 1, c.Y))
                     || parentAir.Contains((c.X, c.Y - 1)) || parentAir.Contains((c.X, c.Y + 1))));
             if (junction < 2) continue;
@@ -136,8 +136,7 @@ public static class OrganicPlanner
         // enter. Candidates: deepest first, then nearest the chamber center.
         var anchorCandidates = parent.Cells
             .Where(c => grid.IsAir(c.X, c.Y) && grid.InBounds(c.X, c.Y + 1)
-                && grid[c.X, c.Y + 1] != CellMaterial.Air
-                && grid[c.X, c.Y + 1] != CellMaterial.Rock)
+                && grid[c.X, c.Y + 1] != CellMaterial.Air) // Phase 13: rock below is fine — it's diggable
             .OrderByDescending(c => c.Y)
             .ThenBy(c => Math.Abs(c.X - parent.Center.X))
             .ToList();
@@ -234,15 +233,16 @@ public static class OrganicPlanner
         }
     }
 
-    /// <summary>Fraction of chamber cells reachable from origin through
-    /// non-Rock site cells (4-adjacency). Rock is fixed terrain known at
-    /// plan time; anything below ~1.0 means part of the chamber can only be
-    /// reached by digging through undiggable material.</summary>
+    /// <summary>Fraction of chamber cells connected to the origin through
+    /// site cells (4-adjacency). Phase 13: Rock is diggable, so it no longer
+    /// blocks passability — this is now a pure mask-connectivity guard
+    /// (rejects malformed/clipped masks) rather than a rock-sealing check.
+    /// The 70% threshold is retained as that structural guard.</summary>
     private static double ReachableChamberFraction(
         Grid grid, (int X, int Y) origin, HashSet<(int, int)> site, HashSet<(int, int)> chamber)
     {
         var passable = new HashSet<(int, int)>(site.Where(c =>
-            grid.InBounds(c.Item1, c.Item2) && grid[c.Item1, c.Item2] != CellMaterial.Rock))
+            grid.InBounds(c.Item1, c.Item2)))
         {
             origin,
         };

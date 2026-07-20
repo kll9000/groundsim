@@ -160,6 +160,9 @@ public class ConcurrentAgentTests
             agents.Add(new Agent(grid, sim, claims, 40 + i * 2, 29, (35, 30, 65, 40), dropX));
         }
 
+        // Phase 13: rock is diggable (Rock -> LooseRock), so the conserved
+        // quantity is ALL solid cells + carried + in-flight — material
+        // transforms but cell count is invariant.
         int CountDiggable()
         {
             int n = 0;
@@ -167,8 +170,7 @@ public class ConcurrentAgentTests
             {
                 for (int y = 0; y < grid.Height; y++)
                 {
-                    var m = grid[x, y];
-                    if (m != CellMaterial.Air && m != CellMaterial.Rock) n++;
+                    if (grid[x, y] != CellMaterial.Air) n++;
                 }
             }
             return n;

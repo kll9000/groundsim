@@ -28,7 +28,10 @@ public partial class MainWindow : Window
     private readonly Stopwatch _frameTimer = Stopwatch.StartNew();
     private int _lastDirtyCount;
 
-    private readonly Camera _camera = new();
+    // MaxZoom raised with the Phase 13 resolution change so the deepest
+    // zoom still reaches ~40 px per cell (2 px × 20, matching the old
+    // 5 px × 8 ceiling).
+    private readonly Camera _camera = new() { MaxZoom = 20 };
     private (string Label, Func<(int X, int Y)> Cell)? _follow;
     private Point _dragStart;
     private Point _lastDragPoint;

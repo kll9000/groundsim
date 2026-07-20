@@ -19,7 +19,11 @@ namespace GroundSim.Render;
 /// </summary>
 public sealed class GridRenderer
 {
-    public const int CellSize = 5; // pixels per cell
+    // Phase 13 Part C: doubled render resolution — cells draw in less than
+    // half their former pixel footprint (5 → 2; exact halving of an odd size
+    // is impossible in integer pixels, so this is slightly finer than
+    // double). Same world dimensions; purely a rendering-density change.
+    public const int CellSize = 2; // pixels per cell
 
     private readonly Grid _grid;
     private readonly byte[] _cellPixels = new byte[CellSize * CellSize * 4];
@@ -128,10 +132,12 @@ public sealed class GridRenderer
     }
 
     /// <summary>A smaller centered marker (eggs), so stationary entities read
-    /// as objects sitting in a cell rather than filling it.</summary>
+    /// as objects sitting in a cell rather than filling it. At very small
+    /// cell sizes an inset would collapse to zero pixels, so it only applies
+    /// when there's room for it.</summary>
     private void DrawDot(int x, int y, Color c)
     {
-        const int inset = 1;
+        const int inset = CellSize >= 4 ? 1 : 0;
         const int size = CellSize - 2 * inset;
         var pixels = new byte[size * size * 4];
         for (int i = 0; i < size * size; i++)

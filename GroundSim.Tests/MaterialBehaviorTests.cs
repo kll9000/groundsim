@@ -32,15 +32,18 @@ public class MaterialBehaviorTests
     }
 
     [Fact]
-    public void LooseRock_IsDiggable_UnlikeTerrainRock()
+    public void LooseRock_AndTerrainRock_AreBothDiggable_YieldingLooseRock()
     {
+        // Phase 13: terrain Rock became diggable; both yield LooseRock so
+        // carried/dropped mined rock uses the existing loose-rock physics.
         var grid = new Grid(10, 10);
         grid[3, 5] = CellMaterial.LooseRock;
         grid[4, 5] = CellMaterial.Rock;
 
         Assert.Equal(CellMaterial.LooseRock, grid.Dig(3, 5));
         Assert.Equal(CellMaterial.Air, grid[3, 5]);
-        Assert.Null(grid.Dig(4, 5)); // terrain rock stays undiggable
+        Assert.Equal(CellMaterial.LooseRock, grid.Dig(4, 5));
+        Assert.Equal(CellMaterial.Air, grid[4, 5]);
     }
 
     // Phase 3 review note: a shared seed does NOT make the two runs

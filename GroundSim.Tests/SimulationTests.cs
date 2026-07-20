@@ -25,13 +25,15 @@ public class GridTests
     }
 
     [Fact]
-    public void Dig_Rock_ReturnsNull_AndLeavesRock()
+    public void Dig_Rock_ReturnsLooseRockRubble_AndClearsCell()
     {
+        // Phase 13 behavior change (deliberate): terrain Rock is diggable
+        // and converts to LooseRock rubble when dug.
         var grid = new Grid(10, 10);
         grid[2, 2] = CellMaterial.Rock;
 
-        Assert.Null(grid.Dig(2, 2));
-        Assert.Equal(CellMaterial.Rock, grid[2, 2]);
+        Assert.Equal(CellMaterial.LooseRock, grid.Dig(2, 2));
+        Assert.Equal(CellMaterial.Air, grid[2, 2]);
     }
 
     [Fact]

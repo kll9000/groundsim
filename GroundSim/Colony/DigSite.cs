@@ -47,20 +47,19 @@ public sealed class DigSite
 
     /// <summary>
     /// True while any diggable cell remains that the dig frontier can still
-    /// reach (has a 4-adjacent Air cell). Cells sealed behind terrain Rock
-    /// pockets are tolerated — Phase 11's deep organic chambers overlap the
-    /// rock-scatter depths, and a pocket the frontier can never open must not
-    /// keep the site "incomplete" forever. This matches the diggers' own
-    /// idle condition exactly: excavation is complete precisely when no
-    /// digger can find another target.
+    /// reach (has a 4-adjacent Air cell). Phase 13: Rock is diggable, so it
+    /// COUNTS — completion means the site is genuinely cleared, rock
+    /// included (no more permanent pockmarks), and the old sealed-pocket
+    /// tolerance is unnecessary because nothing is undiggable anymore. This
+    /// still matches the diggers' own idle condition exactly: excavation is
+    /// complete precisely when no digger can find another target.
     /// </summary>
     public bool HasRemainingDiggable(Grid grid)
     {
         foreach (var (x, y) in _cells)
         {
             if (!grid.InBounds(x, y)) continue;
-            var m = grid[x, y];
-            if (m == CellMaterial.Air || m == CellMaterial.Rock) continue;
+            if (grid[x, y] == CellMaterial.Air) continue;
             if (grid.IsAir(x - 1, y) || grid.IsAir(x + 1, y)
                 || grid.IsAir(x, y - 1) || grid.IsAir(x, y + 1))
             {

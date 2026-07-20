@@ -177,6 +177,7 @@ public sealed class Agent
 
         _claims.Add(target.Value);
         _digTarget = target;
+        _digProgress = 0;
         if (PlanPathToDigTarget()) State = AgentState.PathingToDig;
         else AbandonDigTarget();
     }
@@ -230,6 +231,14 @@ public sealed class Agent
             else State = AgentState.PathingToDig;
             return;
         }
+
+        // Rock takes multiple ticks of chipping; each chip is one tick's
+        // unit of work (the non-blocking contract holds).
+        if (_grid[t.X, t.Y] == CellMaterial.Rock && ++_digProgress < RockDigTicks)
+        {
+            return;
+        }
+        _digProgress = 0;
 
         var dug = _grid.Dig(t.X, t.Y);
         _claims.Remove(t);
@@ -303,8 +312,19 @@ public sealed class Agent
         _idleCooldown = IdleCooldownTicks;
     }
 
+    /// <summary>Phase 13: everything solid is diggable — terrain Rock just
+    /// takes longer (see RockDigTicks chipping in TickDig).</summary>
     private static bool IsDiggable(CellMaterial m)
-        => m != CellMaterial.Air && m != CellMaterial.Rock;
+        => m != CellMaterial.Air;
+
+    /// <summary>Ticks of chipping needed per Rock cell (dirt and everything
+    /// else: 1). Rock mining is open to ALL diggers — restricting it to
+    /// Majors would recreate the waits-on-a-caste stall class; Majors still
+    /// speed excavation the way they always have, by being extra diggers.
+    /// INVENTED constant, same status as ColonyConfig values.</summary>
+    public const int RockDigTicks = 4;
+
+    private int _digProgress;
 
     /// <summary>
     /// Nearest unclaimed diggable cell in the region that touches Air (the

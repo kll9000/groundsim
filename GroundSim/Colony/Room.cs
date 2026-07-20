@@ -109,16 +109,15 @@ public sealed class Room
 
     /// <summary>
     /// True while any FRONTIER-REACHABLE diggable cell remains (same
-    /// accessible-frontier semantics as DigSite.HasRemainingDiggable): rock
-    /// pillars and dirt pockets sealed behind rock are tolerated as natural
-    /// features rather than blocking completion forever.
+    /// accessible-frontier semantics as DigSite.HasRemainingDiggable).
+    /// Phase 13: Rock is diggable and counts — completed rooms are fully
+    /// cleared, no permanent pockmarks.
     /// </summary>
     public bool HasRemainingDiggable(Grid grid)
     {
         foreach (var (x, y) in _cells)
         {
-            var m = grid[x, y];
-            if (m == CellMaterial.Air || m == CellMaterial.Rock) continue;
+            if (grid[x, y] == CellMaterial.Air) continue;
             if (grid.IsAir(x - 1, y) || grid.IsAir(x + 1, y)
                 || grid.IsAir(x, y - 1) || grid.IsAir(x, y + 1))
             {

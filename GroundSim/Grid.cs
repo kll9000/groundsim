@@ -73,16 +73,20 @@ public sealed class Grid
     }
 
     /// <summary>
-    /// Digs the cell at (x, y): diggable material becomes Air and the removed
-    /// material is returned so the caller can "carry" it. Returns null if the
-    /// cell is out of bounds, already Air, or not diggable (Rock).
+    /// Digs the cell at (x, y): the material becomes Air and the removed
+    /// material is returned so the caller can "carry" it. Returns null only
+    /// for out-of-bounds or already-Air cells. Phase 13: terrain Rock is now
+    /// diggable — it converts to LooseRock rubble when dug (the material
+    /// Phase 2 built for exactly this), so carried/dropped mined rock uses
+    /// the existing loose-rock physics. Mining SPEED cost lives in Agent
+    /// (multi-tick chipping), not here — this API stays a single mutation.
     /// </summary>
     public CellMaterial? Dig(int x, int y)
     {
         if (!InBounds(x, y)) return null;
         var material = this[x, y];
-        if (material == CellMaterial.Air || material == CellMaterial.Rock) return null;
+        if (material == CellMaterial.Air) return null;
         this[x, y] = CellMaterial.Air;
-        return material;
+        return material == CellMaterial.Rock ? CellMaterial.LooseRock : material;
     }
 }

@@ -79,9 +79,11 @@ public sealed class ColonyConfig
     /// (radians ≈ 31.5°).</summary>
     public double TunnelMaxDeviation { get; init; } = 0.55;
 
-    /// <summary>Chamber footprint bounds, in cells.</summary>
-    public int ChamberMinArea { get; init; } = 40;
-    public int ChamberMaxArea { get; init; } = 70;
+    /// <summary>Chamber footprint bounds, in cells (Phase 13: enlarged so
+    /// rooms read as real rooms, tuned together with the doubled render
+    /// resolution).</summary>
+    public int ChamberMinArea { get; init; } = 80;
+    public int ChamberMaxArea { get; init; } = 130;
 
     /// <summary>Probability an edge-adjacent seed cell joins the chamber seed
     /// before CA smoothing (breaks circular symmetry).</summary>
@@ -107,9 +109,9 @@ public sealed class ColonyConfig
     public double ShaftMaxDeviation { get; init; } = 0.08;
 
     /// <summary>Founding-chamber footprint (cells) — smaller than worker-dug
-    /// rooms; the Queen digs it alone.</summary>
-    public int HomeChamberMinArea { get; init; } = 25;
-    public int HomeChamberMaxArea { get; init; } = 35;
+    /// rooms; the Queen digs it alone. (Phase 13: enlarged with the rest.)</summary>
+    public int HomeChamberMinArea { get; init; } = 40;
+    public int HomeChamberMaxArea { get; init; } = 55;
 
     /// <summary>Spoil-mound drop offsets: deliveries alternate sides of the
     /// entrance at (opening half-width + 1 + rand(0..MoundDropRange)) columns,

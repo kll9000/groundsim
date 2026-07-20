@@ -217,6 +217,8 @@ public class MajorTests
         colony.SpoilDropX = 100;
         colony.Spawn(Caste.Major, colony.HomeCenter.X, colony.HomeCenter.Y);
 
+        // Phase 13: rock is diggable (Rock -> LooseRock), so conservation is
+        // over ALL solid cells + carried + in-flight.
         int DiggableInWorld()
         {
             int n = 0;
@@ -224,8 +226,7 @@ public class MajorTests
             {
                 for (int y = 0; y < grid.Height; y++)
                 {
-                    var m = grid[x, y];
-                    if (m != CellMaterial.Air && m != CellMaterial.Rock) n++;
+                    if (grid[x, y] != CellMaterial.Air) n++;
                 }
             }
             return n;

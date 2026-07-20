@@ -44,7 +44,7 @@ public class FoundingShapeTests
         Assert.True(maxX - minX <= 4, $"shaft wanders {maxX - minX} columns — should be near-vertical");
 
         // The chamber is a real blob at depth, below the shaft.
-        Assert.InRange(plan.HomeRoom.Cells.Count, 12, 60);
+        Assert.InRange(plan.HomeRoom.Cells.Count, 12, 90); // Phase 13: bigger chambers
         Assert.True(plan.HomeRoom.Y0 >= 34, "chamber sits below a real shaft length");
     }
 

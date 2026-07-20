@@ -41,7 +41,7 @@ public partial class App : Application
         }
 
         int maxDirty = 0;
-        const int ticks = 8000;
+        const int ticks = 40_000; // Phase 13: bigger chambers + rock chipping found slower
         var sw = Stopwatch.StartNew();
         for (int t = 0; t < ticks; t++)
         {

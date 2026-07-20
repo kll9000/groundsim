@@ -132,8 +132,10 @@ public class OrganicPlannerTests
     {
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = ColonyTestWorld.Founded(grid, sim, new ColonyConfig());
-        // An existing excavated room square in the middle of the branch cone.
-        var blocker = colony.AddExcavatedRoom(RoomType.Nursery, (50, 40, 62, 46));
+        // An existing excavated room in the branch cone. (Phase 13: sized so
+        // the enlarged chambers still have somewhere legal to go in the
+        // small test world — the point is avoidance, not impossibility.)
+        var blocker = colony.AddExcavatedRoom(RoomType.Nursery, (50, 40, 56, 43));
 
         var rng = new Random(5);
         var plan = OrganicPlanner.Plan(grid, colony.Rooms, colony.Rooms[0], RoomType.Garden,
