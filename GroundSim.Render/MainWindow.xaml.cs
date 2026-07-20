@@ -22,7 +22,14 @@ public partial class MainWindow : Window
     private readonly Simulation _sim;
     private readonly Colony _colony;
     private readonly DirtyTracker _dirty;
-    private readonly TickClock _clock = new() { TicksPerSecond = 60 };
+    // Phase 15.5: default 60 → 240. Phase 15's finer grid inflated
+    // excavation ticks ~7.7× (founding 4,072 → 31,224), so 60 tps meant
+    // ~8.7 min of real time to found; 240 tps ≈ 2.2 min (Phase 15's own
+    // measured number). 240 = 4 ticks/frame at ~60 fps, leaving 2×
+    // headroom under MaxTicksPerAdvance (8) so hitches catch up instead
+    // of dropping ticks. Pure playback speed — the canonical sim second
+    // stays the core TickClock's 30 ticks (the Phase 14 conversion basis).
+    private readonly TickClock _clock = new() { TicksPerSecond = 240 };
     private readonly GridRenderer _renderer;
     private readonly HashSet<Room> _tintedRooms = new();
     private readonly Stopwatch _frameTimer = Stopwatch.StartNew();
@@ -216,7 +223,11 @@ public partial class MainWindow : Window
         {
             case Key.Escape: _follow = null; break;
             case Key.Space: _clock.Paused = !_clock.Paused; break;
-            case Key.Up: _clock.TicksPerSecond = Math.Min(240, _clock.TicksPerSecond * 2); break;
+            // Phase 15.5: ceiling 240 → 480 so Up-arrow still fast-forwards
+            // above the new 240 default. 480 is the honest max — 8 ticks/
+            // frame at ~60 fps is exactly MaxTicksPerAdvance; advertising
+            // more would silently drop ticks.
+            case Key.Up: _clock.TicksPerSecond = Math.Min(480, _clock.TicksPerSecond * 2); break;
             case Key.Down: _clock.TicksPerSecond = Math.Max(2, _clock.TicksPerSecond / 2); break;
         }
     }
