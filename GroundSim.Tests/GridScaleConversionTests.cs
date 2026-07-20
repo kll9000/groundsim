@@ -26,7 +26,13 @@ public class GridScaleConversionTests
         Assert.Equal(8 * S, _cfg.ShaftMinLength);
         Assert.Equal(12 * S, _cfg.ShaftMaxLength);
         Assert.Equal(5 * S, _cfg.MoundDropRange);
-        Assert.Equal(7 * S, _cfg.MoundMaxHeight);
+        // Phase 16 Part B: deliberately retuned beyond the scale conversion
+        // (was 7 × S = 14) after root-causing the flat-mound look — pin
+        // updated in the same commit, per this file's contract. Must stay
+        // below the chimney's 12 × S = 24 maintained height.
+        Assert.Equal(20, _cfg.MoundMaxHeight);
+        Assert.True(_cfg.MoundMaxHeight < 12 * S,
+            "MoundMaxHeight must stay below the entrance chimney's maintained height");
         Assert.Equal(1 * S, _cfg.RoomOverlapBuffer);
     }
 
@@ -35,8 +41,11 @@ public class GridScaleConversionTests
     {
         Assert.Equal(80 * S * S, _cfg.ChamberMinArea);
         Assert.Equal(130 * S * S, _cfg.ChamberMaxArea);
-        Assert.Equal(40 * S * S, _cfg.HomeChamberMinArea);
-        Assert.Equal(55 * S * S, _cfg.HomeChamberMaxArea);
+        // Phase 16 Part C: Home chamber deliberately retuned BEYOND the pure
+        // scale conversion (was 40/55 × S² = 160/220) — this pin updates in
+        // the same commit as the retune, per this file's own contract.
+        Assert.Equal(240, _cfg.HomeChamberMinArea);
+        Assert.Equal(320, _cfg.HomeChamberMaxArea);
     }
 
     [Fact]

@@ -46,7 +46,10 @@ public class FoundingShapeTests
 
         // The chamber is a real blob at depth, below the shaft.
         // Phase 15: area bounds ×GridScale² (12..90 → 48..360).
-        Assert.InRange(plan.HomeRoom.Cells.Count, 48, 360);
+        // Phase 16: upper bound 360 → 525 for the bigger Home chamber
+        // (target max 320 × the same ~1.64 CA-variance headroom the old
+        // 55→90 bound used); lower stays the degenerate floor.
+        Assert.InRange(plan.HomeRoom.Cells.Count, 48, 525);
         Assert.True(plan.HomeRoom.Y0 >= 68, "chamber sits below a real shaft length"); // 60 + 4×GridScale
     }
 

@@ -177,9 +177,15 @@ public sealed class ColonyConfig
 
     /// <summary>Founding-chamber footprint (cells) — smaller than worker-dug
     /// rooms; the Queen digs it alone. (Phase 13: enlarged with the rest.)
-    /// Phase 15: 40–55 × GridScale² = 160–220, same physical footprint.</summary>
-    public int HomeChamberMinArea { get; init; } = 160;
-    public int HomeChamberMaxArea { get; init; } = 220;
+    /// Phase 15: 40–55 × GridScale² = 160–220, same physical footprint.
+    /// Phase 16 Part C: retuned 160–220 → 240–320 (a deliberate PHYSICAL
+    /// size increase per Kevin's live observation, NOT a scale conversion —
+    /// avg 280 ≈ 2/3 of the Garden/Nursery average of 420, up from ~45%,
+    /// so Home reads as a real roomy founding chamber while worker-dug
+    /// rooms stay the larger ones). INVENTED, like all excavation
+    /// geometry.</summary>
+    public int HomeChamberMinArea { get; init; } = 240;
+    public int HomeChamberMaxArea { get; init; } = 320;
 
     /// <summary>Spoil-mound drop offsets: deliveries alternate sides of the
     /// entrance at (opening half-width + 1 + rand(0..MoundDropRange)) columns,
@@ -196,8 +202,20 @@ public sealed class ColonyConfig
     /// with DirtSlideChance friction, slopes hold and the mound can build
     /// real height without re-plugging the shaft (re-measured).
     /// Phase 15: 7 × GridScale = 14 — a height in cells, linear scale,
-    /// same physical mound cap.</summary>
-    public int MoundMaxHeight { get; init; } = 14;
+    /// same physical mound cap.
+    /// Phase 16 Part B: 14 → 20, a deliberate retune (NOT a scale
+    /// conversion). Root cause of the "flat mound" look: the adaptive
+    /// spread makes the equilibrium shape a PLATEAU at exactly this cap,
+    /// so the cap alone decides the mound's aspect; measured at the finer
+    /// grid, dirt piles hold ~2.6× steeper slopes than at the old grid
+    /// (grain run-length is fixed in cells = half the physical distance),
+    /// and 4-seed 100k-tick app-world runs at 20 show peaked two-winged
+    /// mounds with the entrance chimney essentially never plugged (0-2 of
+    /// 200 samples, transient). COUPLING: must stay comfortably BELOW the
+    /// entrance chimney's maintained height (12 × GridScale = 24) or the
+    /// mound tops out above what maintenance keeps open and can seal the
+    /// colony — 20 leaves a 4-cell margin.</summary>
+    public int MoundMaxHeight { get; init; } = 20;
 
     /// <summary>Buffer margin (cells) kept between new masks and existing
     /// rooms, except at the deliberate tunnel connection.

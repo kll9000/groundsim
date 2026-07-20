@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 
@@ -56,6 +57,7 @@ public partial class MainWindow : Window
         SurfaceImage.Source = _renderer.Bitmap;
         _renderer.DrawFull(_colony);
         _dirty.Clear();
+        BuildLegend();
 
         Loaded += (_, _) =>
         {
@@ -74,6 +76,42 @@ public partial class MainWindow : Window
         ViewportHost.MouseMove += OnMouseMove;
         ViewportHost.MouseLeftButtonUp += OnMouseUp;
         CompositionTarget.Rendering += OnFrame;
+    }
+
+    /// <summary>Phase 16: builds the legend rows from GridRenderer's own
+    /// color table — a swatch plus label per entry, nothing hand-copied.</summary>
+    private void BuildLegend()
+    {
+        LegendStack.Children.Add(new TextBlock
+        {
+            Text = "Legend  [L to hide]",
+            Foreground = System.Windows.Media.Brushes.White,
+            FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+            FontSize = 12,
+            Margin = new Thickness(0, 0, 0, 5),
+        });
+        foreach (var (label, color) in GridRenderer.LegendEntries)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 1, 0, 1) };
+            row.Children.Add(new System.Windows.Shapes.Rectangle
+            {
+                Width = 12,
+                Height = 12,
+                Fill = new System.Windows.Media.SolidColorBrush(color),
+                Stroke = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)),
+                StrokeThickness = 0.5,
+                Margin = new Thickness(0, 0, 6, 0),
+            });
+            row.Children.Add(new TextBlock
+            {
+                Text = label,
+                Foreground = System.Windows.Media.Brushes.Gainsboro,
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize = 12,
+            });
+            LegendStack.Children.Add(row);
+        }
     }
 
     private void OnFrame(object? sender, EventArgs e)
@@ -223,6 +261,10 @@ public partial class MainWindow : Window
         {
             case Key.Escape: _follow = null; break;
             case Key.Space: _clock.Paused = !_clock.Paused; break;
+            case Key.L:
+                LegendPanel.Visibility =
+                    LegendPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+                break;
             // Phase 15.5: ceiling 240 → 480 so Up-arrow still fast-forwards
             // above the new 240 default. 480 is the honest max — 8 ticks/
             // frame at ~60 fps is exactly MaxTicksPerAdvance; advertising

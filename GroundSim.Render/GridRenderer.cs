@@ -42,6 +42,33 @@ public sealed class GridRenderer
     private static readonly Color GardenTint = Color.FromRgb(32, 54, 40);
     private static readonly Color NurseryTint = Color.FromRgb(56, 46, 32);
 
+    /// <summary>Phase 16: the material palette, exposed so the legend (and
+    /// tests) read the SAME constants the renderer draws with — the legend
+    /// can never drift from the actual colors.</summary>
+    public static Color ColorFor(CellMaterial m) => MaterialColor(m);
+
+    /// <summary>Phase 16: the on-screen legend's content, derived directly
+    /// from this class's color constants (single source of truth). Order is
+    /// display order: terrain first, then entities, then room tints.</summary>
+    public static IReadOnlyList<(string Label, Color Color)> LegendEntries { get; } = new[]
+    {
+        ("Dirt", MaterialColor(CellMaterial.Dirt)),
+        ("Rock", MaterialColor(CellMaterial.Rock)),
+        ("Loose rock", MaterialColor(CellMaterial.LooseRock)),
+        ("Stick", MaterialColor(CellMaterial.Stick)),
+        ("Grass", MaterialColor(CellMaterial.Grass)),
+        ("Fungus", MaterialColor(CellMaterial.Fungus)),
+        ("Falling particle", AwakeColor),
+        ("Queen", QueenColor),
+        ("Tender", TenderColor),
+        ("Forager", ForagerColor),
+        ("Major", MajorColor),
+        ("Egg", EggColor),
+        ("Home room", HomeTint),
+        ("Garden room", GardenTint),
+        ("Nursery room", NurseryTint),
+    };
+
     private static Color MaterialColor(CellMaterial m) => m switch
     {
         CellMaterial.Air => AirColor,
