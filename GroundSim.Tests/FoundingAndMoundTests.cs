@@ -70,6 +70,11 @@ public class FoundingShapeTests
         Assert.Equal(QueenState.Laying, colony.Queen.State);
         Assert.NotNull(colony.Milestones.HomeFoundedTick);
         Assert.Equal(colony.Config.StarterResource, colony.FarmedResource);
+        // Phase 12.5 item 2: the founding dig actually FINISHED, by the
+        // project's own completion definition (frontier-accessible rule) —
+        // not just that the state flipped.
+        Assert.False(colony.Rooms[0].HasRemainingDiggable(grid),
+            "queen entered Laying with frontier-accessible diggable cells remaining in the home chamber");
         Assert.True(grid.IsAir(colony.Queen.X, colony.Queen.Y), "queen settled in a real air cell");
         Assert.True(colony.Rooms[0].Contains(colony.Queen.X, colony.Queen.Y), "queen settled inside the home chamber");
 
@@ -99,6 +104,17 @@ public class FoundingShapeTests
 
         var sim = new Simulation(grid, seed: 4);
         var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 56, seed: 4);
+
+        // Phase 12.5 item 3: pin that the fallback site contains REAL undug
+        // material before founding runs (the Phase 11.5 pattern) — a future
+        // carve-depth or geometry shift must not silently degenerate this
+        // back into a nothing-to-dig test.
+        int Diggable() => colony.Rooms[0].Cells.Count(c =>
+            grid[c.X, c.Y] != CellMaterial.Air && grid[c.X, c.Y] != CellMaterial.Rock);
+        int diggableBefore = Diggable();
+        Assert.True(diggableBefore >= 20,
+            $"fallback founding chamber should hold real undug material, found {diggableBefore}");
+
         int t = 0;
         while (colony.Queen.State == QueenState.Founding && t < 30_000)
         {
@@ -108,6 +124,11 @@ public class FoundingShapeTests
         }
         Assert.Equal(QueenState.Laying, colony.Queen.State);
         Assert.NotNull(colony.Milestones.HomeFoundedTick);
+        int diggableAfter = Diggable();
+        Assert.True(diggableBefore > diggableAfter,
+            $"founding must have genuinely removed material ({diggableBefore} -> {diggableAfter})");
+        Assert.False(colony.Rooms[0].HasRemainingDiggable(grid),
+            "fallback founding should complete by the frontier-accessible rule");
     }
 }
 

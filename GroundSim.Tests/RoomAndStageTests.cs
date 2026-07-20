@@ -198,12 +198,21 @@ public class EndToEndStageTests
 
             int t = 0;
             var m = colony.Milestones;
+            int gardenSamples = 0, gardenUnusableSamples = 0; // Phase 12.5 accounting
             while (t < maxTicks &&
                    (m.NurseryExcavatedTick is null || m.GardenExcavatedTick is null))
             {
                 colony.Tick();
                 sim.Tick();
                 t++;
+                if (t % 200 == 0 && colony.GetRoom(RoomType.Garden) is { Excavated: true } gs)
+                {
+                    gardenSamples++;
+                    if (!gs.Cells.Any(c => grid.IsAir(c.X, c.Y) && !grid.IsAir(c.X, c.Y + 1)))
+                    {
+                        gardenUnusableSamples++;
+                    }
+                }
             }
 
             // Stage 1 — Founding.
@@ -223,19 +232,19 @@ public class EndToEndStageTests
                 $"seed {seed}: Nursery not excavated within {maxTicks} ticks");
             Assert.True(colony.GetRoom(RoomType.Garden)!.Excavated);
             Assert.True(colony.GetRoom(RoomType.Nursery)!.Excavated);
-            // Phase 12: the processing site is live-computed (spill can bury
-            // fixed cells). It must be a real air cell inside the garden —
-            // or, when the garden currently has no usable air floor cell,
-            // the designed resilience fallback to the Home Room.
+            // Phase 12.5: STRICT Phase 7 guarantee restored — no conditional
+            // escape hatch. The garden must be usable, processing must be
+            // happening in it, and any transient burial fallback must stay
+            // rare (explicit accounting, so this can't regress silently).
             var g = colony.GetRoom(RoomType.Garden)!;
             var site = colony.ProcessingSite;
             Assert.True(grid.IsAir(site.X, site.Y), $"seed {seed}: processing site {site} is buried");
-            bool gardenUsable = g.Cells.Any(c => grid.IsAir(c.X, c.Y) && !grid.IsAir(c.X, c.Y + 1));
-            if (gardenUsable)
-            {
-                Assert.True(g.Contains(site.X, site.Y),
-                    $"seed {seed}: garden is usable but processing site {site} is outside it");
-            }
+            Assert.True(g.Cells.Any(c => grid.IsAir(c.X, c.Y) && !grid.IsAir(c.X, c.Y + 1)),
+                $"seed {seed}: garden has no usable floor cell at end of run");
+            Assert.True(g.Contains(site.X, site.Y),
+                $"seed {seed}: processing site {site} is outside the garden");
+            Assert.True(gardenUnusableSamples <= Math.Max(1, gardenSamples / 10),
+                $"seed {seed}: garden was unusable at {gardenUnusableSamples}/{gardenSamples} sampled instants");
 
             firstWorker.Add(m.FirstWorkerTick!.Value);
             gardenDone.Add(m.GardenExcavatedTick!.Value);

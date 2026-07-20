@@ -15,6 +15,12 @@ public sealed class ColonyStats
     /// <summary>Of the processed total, how much completed while the Tender
     /// was physically standing inside an excavated Fungus Garden.</summary>
     public double ProcessedInGarden { get; set; }
+
+    /// <summary>Times the garden processing-site provider had to fall back
+    /// to the Home Room because the garden had no usable air cell at that
+    /// instant (Phase 12.5 accounting — burial fallback must never be a
+    /// silent permanent state).</summary>
+    public long ProcessingFellBackToHome { get; set; }
 }
 
 /// <summary>Tick numbers at which colony-stage milestones occurred (null = not yet).</summary>
@@ -316,7 +322,15 @@ public sealed class Colony
         }
 
         var digging = Rooms.FirstOrDefault(r => !r.Excavated && ReferenceEquals(r.PendingDig, ActiveDigSite));
-        if (digging is not null && !ActiveDigSite.HasRemainingDiggable(Grid))
+        // Phase 12.5: completion requires the site to be substantially OPEN,
+        // not merely frontier-empty — a just-planned site whose single air
+        // junction is transiently buried by spill has no accessible frontier
+        // for a tick and was being marked excavated with ZERO cells dug
+        // (measured: 3 of 10 seeds shipped born-dead gardens). A frontier-
+        // empty-but-closed site simply stays active; maintenance re-opens
+        // the junction and digging resumes.
+        if (digging is not null && !ActiveDigSite.HasRemainingDiggable(Grid)
+            && ActiveDigSite.AirFraction(Grid) >= 0.3)
         {
             digging.Excavated = true;
             // The room's dig site (tunnel + chamber) becomes a standing
@@ -342,7 +356,11 @@ public sealed class Colony
                 ProcessingSiteProvider = c =>
                 {
                     var s = room.FloorSite(c.Grid);
-                    return c.Grid.IsAir(s.X, s.Y) ? s : c.HomeCenter;
+                    if (c.Grid.IsAir(s.X, s.Y)) return s;
+                    // Tracked defense-in-depth (Phase 12.5): should be rare
+                    // transients only; the e2e asserts this stays bounded.
+                    c.Stats.ProcessingFellBackToHome++;
+                    return c.HomeCenter;
                 };
                 Milestones.GardenExcavatedTick ??= TickCount;
                 break;

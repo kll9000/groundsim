@@ -29,6 +29,22 @@ public sealed class DigSite
 
     public bool Contains(int x, int y) => _cells.Contains((x, y));
 
+    /// <summary>Fraction of site cells currently Air (Phase 12.5): used to
+    /// distinguish "excavation finished" from "excavation never started but
+    /// its only air-adjacency was transiently buried" — the race that
+    /// produced born-dead rooms marked excavated with zero cells dug.</summary>
+    public double AirFraction(Grid grid)
+    {
+        int air = 0, total = 0;
+        foreach (var (x, y) in _cells)
+        {
+            if (!grid.InBounds(x, y)) continue;
+            total++;
+            if (grid.IsAir(x, y)) air++;
+        }
+        return total == 0 ? 0 : air / (double)total;
+    }
+
     /// <summary>
     /// True while any diggable cell remains that the dig frontier can still
     /// reach (has a 4-adjacent Air cell). Cells sealed behind terrain Rock

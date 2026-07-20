@@ -75,8 +75,15 @@ public static class OrganicPlanner
             // Connecting tunnel: from the parent cell nearest the chamber,
             // biased at the chamber centroid, terminating on arrival at the
             // chamber's halo — so tunnels meet chamber walls at varied points.
+            // Phase 12.5: the origin must be a CURRENTLY-AIR parent cell (a
+            // spill-covered corner cell as origin gave a garden site with
+            // zero air contact from birth), and the junction gets widened +
+            // validated below — a single-cell junction can be sealed by one
+            // settling particle, permanently orphaning the whole site.
             var centroid = Centroid(chamber);
-            var origin = parent.Cells.OrderBy(c =>
+            var originPool = parent.Cells.Where(c => grid.IsAir(c.X, c.Y)).ToList();
+            if (originPool.Count == 0) originPool = parent.Cells.ToList();
+            var origin = originPool.OrderBy(c =>
                 Math.Abs(c.X - centroid.X) + Math.Abs(c.Y - centroid.Y)).First();
             var chamberHalo = new HashSet<(int, int)>();
             foreach (var cell in chamber) Dilate(chamberHalo, cell, 1);
@@ -84,8 +91,26 @@ public static class OrganicPlanner
             var tunnel = MaskGenerator.Tunnel(grid, origin, centroid,
                 cfg.TunnelWidthMin, cfg.TunnelWidthMax, cfg.TunnelTurnJitter, cfg.TunnelMaxDeviation,
                 rng, arrived: c => chamberHalo.Contains(c));
+            // Widen the tunnel mouth at the parent wall (multi-cell junction).
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    int mx = origin.X + dx, my = origin.Y + dy;
+                    if (grid.InBounds(mx, my)) tunnel.Add((mx, my));
+                }
+            }
             if (!tunnel.Any(c => chamberHalo.Contains(c))) continue; // never arrived
             if (tunnel.Any(c => forbidden.Contains(c))) continue;    // clipped another room
+            // Junction redundancy: at least 2 diggable tunnel cells must
+            // touch parent air right now.
+            var parentAir = new HashSet<(int, int)>(parent.Cells.Where(c => grid.IsAir(c.X, c.Y)));
+            int junction = tunnel.Count(c =>
+                grid.InBounds(c.X, c.Y)
+                && grid[c.X, c.Y] != CellMaterial.Air && grid[c.X, c.Y] != CellMaterial.Rock
+                && (parentAir.Contains((c.X - 1, c.Y)) || parentAir.Contains((c.X + 1, c.Y))
+                    || parentAir.Contains((c.X, c.Y - 1)) || parentAir.Contains((c.X, c.Y + 1))));
+            if (junction < 2) continue;
 
             var siteCells = new HashSet<(int, int)>(tunnel);
             siteCells.UnionWith(chamber);
@@ -104,9 +129,21 @@ public static class OrganicPlanner
         }
 
         // Fallback of last resort: the pre-Phase-11 behavior — a small rect
-        // glued below the parent. Guaranteed constructible on any grid.
-        int fx0 = Math.Clamp(parent.X0 + 1, 1, grid.Width - 7);
-        int fy0 = Math.Clamp(parent.Y1 + 1, 1, grid.Height - 5);
+        // glued below the parent. Phase 12.5: anchored under a parent air
+        // cell whose below-neighbor is genuinely DIGGABLE — anchoring at the
+        // bounding box (may touch no chamber cell) or at a floor cell over
+        // rock (measured, seed 3) yields a fallback the frontier can never
+        // enter. Candidates: deepest first, then nearest the chamber center.
+        var anchorCandidates = parent.Cells
+            .Where(c => grid.IsAir(c.X, c.Y) && grid.InBounds(c.X, c.Y + 1)
+                && grid[c.X, c.Y + 1] != CellMaterial.Air
+                && grid[c.X, c.Y + 1] != CellMaterial.Rock)
+            .OrderByDescending(c => c.Y)
+            .ThenBy(c => Math.Abs(c.X - parent.Center.X))
+            .ToList();
+        var anchor = anchorCandidates.Count > 0 ? anchorCandidates[0] : parent.FloorSite(grid);
+        int fx0 = Math.Clamp(anchor.X - 3, 1, grid.Width - 7);
+        int fy0 = Math.Clamp(anchor.Y + 1, 1, grid.Height - 5);
         var fallbackRoom = new Room(type, fx0, fy0, fx0 + 5, fy0 + 2);
         return new RoomPlan(fallbackRoom, new DigSite(fallbackRoom.Cells), UsedFallback: true);
     }
