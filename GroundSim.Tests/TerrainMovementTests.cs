@@ -129,11 +129,12 @@ public class SurfaceMovementTests
     [Fact]
     public void ColonyRun_NoWorkerEndsUpVisiblyFloating_ByIndependentOracle()
     {
-        // Phase 9.5: this audit uses Terrain.IsVisiblyFloating — an
-        // independent 3×3-contact oracle that never consults IsSupported —
-        // so it can fail on a false-positive in the production rule (e.g.
-        // the enclosed/roof branch claiming support from distant overhead
-        // material), not just on cases the rule already agrees are wrong.
+        // Phase 9.5 origin; Phase 11.5 honest relabel: since the Phase 11
+        // unification the oracle coincides with the rule, so this is no
+        // longer an independent-PREDICATE check — but it remains a
+        // meaningful BEHAVIORAL check (no agent persists in open-air cells;
+        // movement must keep resolving falls). The primary independent net
+        // is now TrajectoryAuditTests.
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = Colony.Found(grid, sim, new ColonyConfig(),
             ColonyTestWorld.Chamber, startX: 56, startY: 29, seed: 5);

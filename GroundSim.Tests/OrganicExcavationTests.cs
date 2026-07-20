@@ -61,19 +61,40 @@ public class MaskGeneratorTests
         Assert.True(IsFourConnected(mask), "chamber must have no detached crumbs");
         Assert.InRange(mask.Count, 30, 110); // within tolerance of target 60
 
-        // Concrete irregularity metric (not eyeballs): the radial distance
-        // from centroid to boundary cells varies meaningfully — a perfect
-        // disc's boundary radius has near-zero relative deviation.
-        double cx = mask.Average(c => (double)c.X);
-        double cy = mask.Average(c => (double)c.Y);
-        var boundary = mask.Where(c =>
-            !mask.Contains((c.X + 1, c.Y)) || !mask.Contains((c.X - 1, c.Y))
-            || !mask.Contains((c.X, c.Y + 1)) || !mask.Contains((c.X, c.Y - 1))).ToList();
-        var radii = boundary.Select(c => Math.Sqrt((c.X - cx) * (c.X - cx) + (c.Y - cy) * (c.Y - cy))).ToList();
-        double mean = radii.Average();
-        double std = Math.Sqrt(radii.Average(r => (r - mean) * (r - mean)));
-        Assert.True(std / mean > 0.08,
-            $"chamber boundary too circular: relative radial deviation {std / mean:0.000}");
+        // Phase 11.5 fix: irregularity is judged against a SAME-AREA perfect
+        // disc's own score, not an absolute threshold — at this scale a
+        // perfect digital disc scores 0.05–0.08 from pixelation alone, so an
+        // absolute cutoff measured noise, not shape (Verifier finding).
+        double blobScore = ShapeMetrics.RadialDeviation(mask);
+        double discScore = ShapeMetrics.RadialDeviation(ShapeMetrics.PerfectDisc(mask.Count));
+        Assert.True(blobScore > discScore * 1.1,
+            $"chamber no less circular than a same-area disc: blob {blobScore:0.000} vs disc {discScore:0.000}");
+    }
+
+    [Fact]
+    public void ChamberIrregularity_ExceedsSameAreaDiscBaseline_AcrossSeeds()
+    {
+        // Measured basis (12 seeds): blob/disc score ratios 1.17–1.97, mean
+        // ≈1.6. Assertions leave headroom: every blob ≥1.05× its disc, and
+        // the mean ratio ≥1.35 — "chambers are genuinely less circular than
+        // a circle of the same size," which is the actual claim.
+        var grid = new Grid(100, 100);
+        for (int y = 0; y < 100; y++)
+        {
+            for (int x = 0; x < 100; x++) grid[x, y] = CellMaterial.Dirt;
+        }
+
+        var ratios = new List<double>();
+        for (int seed = 1; seed <= 12; seed++)
+        {
+            var blob = MaskGenerator.Chamber(grid, (50, 50), 60, 0.4, 4, 5, new Random(seed));
+            double ratio = ShapeMetrics.RadialDeviation(blob)
+                / ShapeMetrics.RadialDeviation(ShapeMetrics.PerfectDisc(blob.Count));
+            Assert.True(ratio > 1.05, $"seed {seed}: blob barely rounder than a disc (ratio {ratio:0.00})");
+            ratios.Add(ratio);
+        }
+        Assert.True(ratios.Average() > 1.35,
+            $"mean irregularity ratio {ratios.Average():0.00} — chambers trend too circular");
     }
 
     [Fact]
@@ -146,32 +167,49 @@ public class OrganicPlannerTests
     }
 
     [Fact]
-    public void Plan_FallsBackGracefully_WhenNoOrganicPlacementExists()
+    public void Plan_FallsBack_AndDiggersGenuinelyExcavateTheFallbackRoom()
     {
+        // Phase 11.5 fix: the old version of this test carved ALL ground
+        // including where the fallback rect lands, so the fallback room was
+        // born complete and no digging was ever exercised. Now: an air band
+        // from y=36 down defeats every organic attempt (chamber targets are
+        // clamped to y≥parentFloor+3=36, so all candidates fail the ≥90%
+        // fresh-ground check), while rows 34–35 — where the fallback rect
+        // glues below the Home Room — remain REAL, undug dirt.
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = ColonyTestWorld.Founded(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0, EggLayIntervalTicks = 1_000_000 });
-        // Carve the ENTIRE underground reachable by the branch cone to air:
-        // every chamber candidate lands in already-dug space and fails the
-        // freshness check on all attempts.
-        for (int y = 30; y < 60; y++)
+        for (int y = 36; y < 60; y++)
         {
-            for (int x = 20; x < 100; x++) grid[x, y] = CellMaterial.Air;
+            for (int x = 5; x < 115; x++) grid[x, y] = CellMaterial.Air;
         }
 
         var plan = OrganicPlanner.Plan(grid, colony.Rooms, colony.Rooms[0], RoomType.Garden,
             colony.Config, new Random(1));
-        Assert.True(plan.UsedFallback, "with no fresh ground, the planner must use the fallback");
-        Assert.NotEmpty(plan.Site.Cells);
+        Assert.True(plan.UsedFallback, "organic attempts must exhaust and fall back");
 
-        // And at colony level: the trigger fires, the (instantly-complete)
-        // fallback room excavates, and nothing stalls.
+        // The fallback site contains real material to dig.
+        int diggableBefore = plan.Site.Cells.Count(c =>
+            grid[c.X, c.Y] != CellMaterial.Air && grid[c.X, c.Y] != CellMaterial.Rock);
+        Assert.True(diggableBefore >= 8,
+            $"fallback site should contain real undug material, found {diggableBefore} cells");
+
+        // Colony level: trigger, dig FOR REAL, complete — no stall.
+        colony.Spawn(Caste.Forager, colony.HomeCenter.X, colony.HomeCenter.Y);
+        colony.Spawn(Caste.Major, colony.HomeCenter.X + 1, colony.HomeCenter.Y);
         colony.FarmedResource = colony.Config.GardenTriggerThreshold;
-        ColonyTestWorld.Run(colony, sim, 500);
+        ColonyTestWorld.Run(colony, sim, 8000);
+
         var garden = colony.GetRoom(RoomType.Garden);
         Assert.NotNull(garden);
-        Assert.True(garden!.Excavated, "fallback room must complete, not stall the colony");
+        Assert.True(garden!.Excavated, "fallback room must be excavated, not stall the colony");
         Assert.Null(colony.ActiveDigSite);
+        // The material was genuinely dug out (rows 34–35 of the rect are Air now).
+        int diggableAfter = garden.Cells.Count(c =>
+            grid[c.X, c.Y] != CellMaterial.Air && grid[c.X, c.Y] != CellMaterial.Rock);
+        Assert.True(diggableAfter == 0 || !garden.HasRemainingDiggable(grid),
+            "fallback room should have been dug to completion");
+        Assert.True(diggableBefore > diggableAfter, "digging must have actually removed material");
     }
 
     [Fact]
