@@ -9,7 +9,7 @@ namespace GroundSim;
 public sealed class DigAssist
 {
     private Agent? _agent;
-    private (int X0, int Y0, int X1, int Y1)? _site;
+    private DigSite? _site;
 
     public CellMaterial? Carrying => _agent?.Carried;
 
@@ -40,11 +40,11 @@ public sealed class DigAssist
             return false;
         }
 
-        if (_agent is null || _site != site)
+        if (_agent is null || !ReferenceEquals(_site, site))
         {
             _agent?.ReleaseClaims();
             _site = site;
-            _agent = new Agent(grid, colony.Sim, colony.DigClaims, x, y, site.Value, colony.SpoilDropX);
+            _agent = new Agent(grid, colony.Sim, colony.DigClaims, x, y, site.Cells, colony.SpoilDropX);
         }
 
         _agent.Tick();

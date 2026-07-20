@@ -35,7 +35,10 @@ public class RoomTests
         ColonyTestWorld.Run(colony, sim, 1);
         Assert.NotNull(colony.GetRoom(RoomType.Garden));
         Assert.Equal(colony.TickCount, colony.Milestones.GardenTriggeredTick);
-        Assert.Equal(colony.GetRoom(RoomType.Garden)!.Rect, colony.ActiveDigSite);
+        // Phase 11: the active site is the garden's planned organic dig
+        // (tunnel + chamber), matched by identity.
+        Assert.NotNull(colony.ActiveDigSite);
+        Assert.Same(colony.GetRoom(RoomType.Garden)!.PendingDig, colony.ActiveDigSite);
     }
 
     [Fact]
@@ -221,7 +224,7 @@ public class EndToEndStageTests
             Assert.True(colony.GetRoom(RoomType.Garden)!.Excavated);
             Assert.True(colony.GetRoom(RoomType.Nursery)!.Excavated);
             var g = colony.GetRoom(RoomType.Garden)!;
-            Assert.Equal((g.Center.X, g.Y1), colony.ProcessingSite); // Phase 9: floor center
+            Assert.Equal(g.FloorCenter, colony.ProcessingSite); // Phase 11: organic-aware floor center
 
             firstWorker.Add(m.FirstWorkerTick!.Value);
             gardenDone.Add(m.GardenExcavatedTick!.Value);

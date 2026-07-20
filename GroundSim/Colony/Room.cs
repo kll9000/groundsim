@@ -3,48 +3,97 @@ namespace GroundSim;
 public enum RoomType { Home, Garden, Nursery } // Waste/Pupa deferred per Phase 5 decision
 
 /// <summary>
-/// A first-class labeled room: a rect region of the grid plus a type tag and
-/// excavation status. A mutable class rather than the handoff's suggested
-/// record because Excavated flips in place when digging completes (flagged in
-/// the Phase 7 report).
+/// A first-class labeled room. Phase 11: a room is a SET OF CELLS (organic
+/// chamber mask), not a rect — the rect constructor remains for the Home Room
+/// and tests, building the equivalent cell set. X0..Y1 are the bounding box.
 /// </summary>
 public sealed class Room
 {
+    private readonly HashSet<(int X, int Y)> _cells;
+
     public RoomType Type { get; }
+    public bool Excavated { get; internal set; }
+
+    /// <summary>The excavation job that will carve this room (chamber +
+    /// connecting tunnel); null once excavated or for pre-carved rooms.</summary>
+    public DigSite? PendingDig { get; internal set; }
+
+    public IReadOnlyCollection<(int X, int Y)> Cells => _cells;
+
     public int X0 { get; }
     public int Y0 { get; }
     public int X1 { get; }
     public int Y1 { get; }
-    public bool Excavated { get; internal set; }
 
-    public Room(RoomType type, int x0, int y0, int x1, int y1, bool excavated = false)
+    public Room(RoomType type, IEnumerable<(int X, int Y)> cells, bool excavated = false)
     {
         Type = type;
-        X0 = x0;
-        Y0 = y0;
-        X1 = x1;
-        Y1 = y1;
         Excavated = excavated;
+        _cells = new HashSet<(int, int)>(cells);
+        if (_cells.Count == 0) throw new ArgumentException("A room needs at least one cell.");
+        X0 = _cells.Min(c => c.X);
+        X1 = _cells.Max(c => c.X);
+        Y0 = _cells.Min(c => c.Y);
+        Y1 = _cells.Max(c => c.Y);
+    }
+
+    public Room(RoomType type, int x0, int y0, int x1, int y1, bool excavated = false)
+        : this(type, RectCells(x0, y0, x1, y1), excavated)
+    {
+    }
+
+    private static IEnumerable<(int, int)> RectCells(int x0, int y0, int x1, int y1)
+    {
+        for (int y = y0; y <= y1; y++)
+        {
+            for (int x = x0; x <= x1; x++) yield return (x, y);
+        }
     }
 
     public (int X0, int Y0, int X1, int Y1) Rect => (X0, Y0, X1, Y1);
     public (int X, int Y) Center => ((X0 + X1) / 2, (Y0 + Y1) / 2);
 
-    public bool Contains(int x, int y) => x >= X0 && x <= X1 && y >= Y0 && y <= Y1;
+    /// <summary>The deepest room cell in (or nearest to) the center column —
+    /// where floor-anchored sites (processing, queen) live under
+    /// terrain-following movement.</summary>
+    public (int X, int Y) FloorCenter
+    {
+        get
+        {
+            int cx = (X0 + X1) / 2;
+            (int X, int Y) best = default;
+            int bestKey = int.MinValue;
+            foreach (var (x, y) in _cells)
+            {
+                int key = y * 1000 - Math.Abs(x - cx); // deepest first, then closest to center
+                if (key > bestKey)
+                {
+                    bestKey = key;
+                    best = (x, y);
+                }
+            }
+            return best;
+        }
+    }
+
+    public bool Contains(int x, int y) => _cells.Contains((x, y));
 
     /// <summary>
-    /// True while any diggable cell remains. Terrain Rock inside the rect is
-    /// tolerated as a natural pillar — excavation is "complete" when nothing
-    /// diggable is left, not when every cell is Air.
+    /// True while any FRONTIER-REACHABLE diggable cell remains (same
+    /// accessible-frontier semantics as DigSite.HasRemainingDiggable): rock
+    /// pillars and dirt pockets sealed behind rock are tolerated as natural
+    /// features rather than blocking completion forever.
     /// </summary>
     public bool HasRemainingDiggable(Grid grid)
     {
-        for (int y = Y0; y <= Y1; y++)
+        foreach (var (x, y) in _cells)
         {
-            for (int x = X0; x <= X1; x++)
+            var m = grid[x, y];
+            if (m == CellMaterial.Air || m == CellMaterial.Rock) continue;
+            if (grid.IsAir(x - 1, y) || grid.IsAir(x + 1, y)
+                || grid.IsAir(x, y - 1) || grid.IsAir(x, y + 1))
             {
-                var m = grid[x, y];
-                if (m != CellMaterial.Air && m != CellMaterial.Rock) return true;
+                return true;
             }
         }
         return false;

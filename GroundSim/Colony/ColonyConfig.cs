@@ -55,6 +55,49 @@ public sealed class ColonyConfig
     /// (Phase 9 sustain; 0 disables regeneration).</summary>
     public double NodeRegenPerTick { get; init; } = 0.02;
 
+    // ---- Phase 11 organic excavation (ALL INVENTED, in grid cells — the
+    // design doc's inch-based ranges translated by judgment for this grid
+    // scale; see PHASE11_REPORT for reasoning) ----
+
+    /// <summary>Distance from the parent room's floor anchor to a new
+    /// chamber's target center, in cells.</summary>
+    public double RoomBranchMinDistance { get; init; } = 12;
+    public double RoomBranchMaxDistance { get; init; } = 20;
+
+    /// <summary>Half-angle (radians) of the downward cone new rooms branch
+    /// into (±from straight down).</summary>
+    public double RoomBranchAngleSpread { get; init; } = 1.0;
+
+    /// <summary>Connecting-tunnel corridor width bounds, in cells.</summary>
+    public double TunnelWidthMin { get; init; } = 2.0;
+    public double TunnelWidthMax { get; init; } = 3.0;
+
+    /// <summary>Per-step heading noise (radians ≈ 8.6°).</summary>
+    public double TunnelTurnJitter { get; init; } = 0.15;
+
+    /// <summary>Max heading drift from the (re-aimed) bias direction
+    /// (radians ≈ 31.5°).</summary>
+    public double TunnelMaxDeviation { get; init; } = 0.55;
+
+    /// <summary>Chamber footprint bounds, in cells.</summary>
+    public int ChamberMinArea { get; init; } = 40;
+    public int ChamberMaxArea { get; init; } = 70;
+
+    /// <summary>Probability an edge-adjacent seed cell joins the chamber seed
+    /// before CA smoothing (breaks circular symmetry).</summary>
+    public double ChamberEdgeNoise { get; init; } = 0.4;
+
+    public int CaGenerations { get; init; } = 4;
+    public int CaThreshold { get; init; } = 5;
+
+    /// <summary>Organic generation attempts before the guaranteed rect
+    /// fallback (Part C hardening).</summary>
+    public int MaskRetryAttempts { get; init; } = 6;
+
+    /// <summary>Buffer margin (cells) kept between new masks and existing
+    /// rooms, except at the deliberate tunnel connection.</summary>
+    public int RoomOverlapBuffer { get; init; } = 1;
+
     public double HaulSize(double distanceFromHome)
         => Math.Max(GatherChunkMin, GatherChunkBase - GatherDistanceFalloff * distanceFromHome);
 }

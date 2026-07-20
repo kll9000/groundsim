@@ -67,8 +67,9 @@ public sealed class Colony
 
     /// <summary>Where excavation is currently happening (Majors and assigned
     /// Foragers dig here). Null when nothing is being dug. Room triggers set
-    /// this automatically; tests may set it manually.</summary>
-    public (int X0, int Y0, int X1, int Y1)? ActiveDigSite { get; set; }
+    /// this automatically; tests may set it manually. Phase 11: a DigSite
+    /// (arbitrary cell mask — tunnel + chamber), no longer a rect.</summary>
+    public DigSite? ActiveDigSite { get; set; }
 
     public int SpoilDropX { get; set; }
     public HashSet<(int X, int Y)> DigClaims { get; } = new();
@@ -180,47 +181,46 @@ public sealed class Colony
 
         if (GetRoom(RoomType.Garden) is null && FarmedResource >= Config.GardenTriggerThreshold)
         {
-            Rooms.Add(PlanRoom(RoomType.Garden));
+            AddPlannedRoom(RoomType.Garden);
             Milestones.GardenTriggeredTick ??= TickCount;
         }
 
         if (GetRoom(RoomType.Nursery) is null && BroodPressure >= Config.NurseryBroodPressureThreshold)
         {
-            Rooms.Add(PlanRoom(RoomType.Nursery));
+            AddPlannedRoom(RoomType.Nursery);
             Milestones.NurseryTriggeredTick ??= TickCount;
         }
     }
 
-    /// <summary>Room placement relative to the Home Room (invented geometry,
-    /// flagged in the report): Garden directly below Home; Nursery directly
-    /// beside it — both share an open edge with existing Air so the dig
-    /// frontier can reach them.</summary>
-    private Room PlanRoom(RoomType type)
+    /// <summary>Phase 11: rooms are organic chambers at real distance,
+    /// connected by winding tunnels. Tiered branching: the Garden branches
+    /// from Home; the Nursery branches from the Garden once it's excavated
+    /// (deeper tiers), else from Home. The planner's hardened fallback
+    /// guarantees a valid dig plan always comes back.</summary>
+    private void AddPlannedRoom(RoomType type)
     {
-        var h = Rooms[0];
-        return type switch
-        {
-            RoomType.Garden => new Room(RoomType.Garden,
-                h.X0 + 1, h.Y1 + 1, Math.Min(Grid.Width - 1, h.X0 + 6), Math.Min(Grid.Height - 1, h.Y1 + 3)),
-            RoomType.Nursery => new Room(RoomType.Nursery,
-                h.X1 + 1, h.Y0, Math.Min(Grid.Width - 1, h.X1 + 5), Math.Min(Grid.Height - 1, h.Y0 + 2)),
-            _ => throw new ArgumentOutOfRangeException(nameof(type)),
-        };
+        var parent = type == RoomType.Nursery && GetRoom(RoomType.Garden) is { Excavated: true } garden
+            ? garden
+            : Rooms[0];
+        var plan = OrganicPlanner.Plan(Grid, Rooms, parent, type, Config, _rng);
+        plan.Room.PendingDig = plan.Site;
+        Rooms.Add(plan.Room);
     }
 
     private void ManageExcavation()
     {
         if (ActiveDigSite is null)
         {
-            var pending = Rooms.FirstOrDefault(r => !r.Excavated && r.Type != RoomType.Home);
-            if (pending is not null) ActiveDigSite = pending.Rect;
+            var pending = Rooms.FirstOrDefault(r => !r.Excavated && r.Type != RoomType.Home && r.PendingDig is not null);
+            if (pending is not null) ActiveDigSite = pending.PendingDig;
             return;
         }
 
-        var digging = Rooms.FirstOrDefault(r => !r.Excavated && r.Rect == ActiveDigSite.Value);
-        if (digging is not null && !digging.HasRemainingDiggable(Grid))
+        var digging = Rooms.FirstOrDefault(r => !r.Excavated && ReferenceEquals(r.PendingDig, ActiveDigSite));
+        if (digging is not null && !ActiveDigSite.HasRemainingDiggable(Grid))
         {
             digging.Excavated = true;
+            digging.PendingDig = null;
             ActiveDigSite = null;
             OnRoomExcavated(digging);
         }
@@ -232,9 +232,9 @@ public sealed class Colony
         {
             case RoomType.Garden:
                 // The Phase 6 seam doing its job: relocate processing with
-                // zero Tender code changes. Floor cell, not geometric center
-                // (Phase 9 terrain-following — see HomeCenter).
-                ProcessingSiteProvider = c => (room.Center.X, room.Y1);
+                // zero Tender code changes. FloorCenter = the room's deepest
+                // center-column cell (organic-shape aware, Phase 11).
+                ProcessingSiteProvider = c => room.FloorCenter;
                 Milestones.GardenExcavatedTick ??= TickCount;
                 break;
             case RoomType.Nursery:
@@ -293,10 +293,26 @@ public sealed class Colony
     /// Nursery once it exists; the Home Room before that.</summary>
     public void LayEgg()
     {
-        var rect = GetRoom(RoomType.Nursery) is { Excavated: true } nursery ? nursery.Rect : HomeRoom;
-        var (x, y) = RandomAirCellIn(rect);
+        var room = GetRoom(RoomType.Nursery) is { Excavated: true } nursery ? nursery : Rooms[0];
+        var (x, y) = RandomRestingCellIn(room);
         Eggs.Add(new Egg(x, y, Config.EggMaturationTicks));
         TotalEggsLaid++;
+    }
+
+    /// <summary>A random SUPPORTED air cell of the room (floor-resting) —
+    /// organic-shape aware; falls back to the room's floor center.</summary>
+    private (int X, int Y) RandomRestingCellIn(Room room)
+    {
+        var cells = room.Cells;
+        (int, int)? anyAir = null;
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            var (x, y) = cells.ElementAt(_rng.Next(cells.Count));
+            if (!Grid.IsAir(x, y)) continue;
+            if (!Grid.IsAir(x, y + 1)) return (x, y); // resting on solid
+            anyAir ??= (x, y);
+        }
+        return anyAir ?? room.FloorCenter;
     }
 
     /// <summary>
@@ -356,19 +372,4 @@ public sealed class Colony
         return best;
     }
 
-    private (int X, int Y) RandomAirCellIn((int X0, int Y0, int X1, int Y1) rect)
-    {
-        // Prefer SUPPORTED air cells (floor-resting): with Phase 9 terrain-
-        // following, a mid-air egg would be unreachable for a Tender.
-        (int, int)? anyAir = null;
-        for (int attempt = 0; attempt < 20; attempt++)
-        {
-            int x = _rng.Next(rect.X0, rect.X1 + 1);
-            int y = _rng.Next(rect.Y0, rect.Y1 + 1);
-            if (!Grid.IsAir(x, y)) continue;
-            if (!Grid.IsAir(x, y + 1)) return (x, y); // resting on solid
-            anyAir ??= (x, y);
-        }
-        return anyAir ?? ((rect.X0 + rect.X1) / 2, rect.Y1);
-    }
 }

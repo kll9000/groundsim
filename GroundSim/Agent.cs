@@ -37,7 +37,7 @@ public sealed class Agent
     private readonly Grid _grid;
     private readonly Simulation _sim;
     private readonly HashSet<(int X, int Y)> _claims; // shared across agents
-    private readonly (int X0, int Y0, int X1, int Y1) _digRegion; // inclusive
+    private readonly IReadOnlyCollection<(int X, int Y)> _digCells; // the region, any shape
     private readonly int _dropX;
 
     private Queue<(int X, int Y)>? _path;
@@ -57,17 +57,38 @@ public sealed class Agent
     /// keeps a workless agent from re-scanning its whole region every tick.</summary>
     private const int IdleCooldownTicks = 15;
 
+    /// <summary>Phase 11: the dig region is an arbitrary cell set (organic
+    /// mask). The frontier selection rule is unchanged — only the shape of
+    /// the region it scans.</summary>
     public Agent(
         Grid grid, Simulation sim, HashSet<(int X, int Y)> sharedClaims,
-        int startX, int startY, (int X0, int Y0, int X1, int Y1) digRegion, int dropX)
+        int startX, int startY, IReadOnlyCollection<(int X, int Y)> digCells, int dropX)
     {
         _grid = grid;
         _sim = sim;
         _claims = sharedClaims;
         X = startX;
         Y = startY;
-        _digRegion = digRegion;
+        _digCells = digCells;
         _dropX = dropX;
+    }
+
+    /// <summary>Rect convenience (founding chamber, tests).</summary>
+    public Agent(
+        Grid grid, Simulation sim, HashSet<(int X, int Y)> sharedClaims,
+        int startX, int startY, (int X0, int Y0, int X1, int Y1) digRegion, int dropX)
+        : this(grid, sim, sharedClaims, startX, startY, RectCells(digRegion), dropX)
+    {
+    }
+
+    private static List<(int X, int Y)> RectCells((int X0, int Y0, int X1, int Y1) r)
+    {
+        var cells = new List<(int X, int Y)>();
+        for (int y = r.Y0; y <= r.Y1; y++)
+        {
+            for (int x = r.X0; x <= r.X1; x++) cells.Add((x, y));
+        }
+        return cells;
     }
 
     public void Tick()
@@ -256,22 +277,20 @@ public sealed class Agent
     /// <summary>
     /// Nearest unclaimed diggable cell in the region that touches Air (the
     /// dig frontier) — cells sealed inside solid ground are skipped until
-    /// digging exposes them.
+    /// digging exposes them. Selection rule unchanged since Phase 4; it now
+    /// scans an arbitrary cell set instead of a rect.
     /// </summary>
     private (int X, int Y)? FindDigTarget()
     {
         (int X, int Y)? best = null;
         int bestDist = int.MaxValue;
-        for (int y = _digRegion.Y0; y <= _digRegion.Y1; y++)
+        foreach (var (x, y) in _digCells)
         {
-            for (int x = _digRegion.X0; x <= _digRegion.X1; x++)
-            {
-                if (!_grid.InBounds(x, y) || !IsDiggable(_grid[x, y])) continue;
-                if (_claims.Contains((x, y))) continue;
-                if (!HasAirNeighbor(x, y)) continue;
-                int dist = Math.Abs(X - x) + Math.Abs(Y - y);
-                if (dist < bestDist) { bestDist = dist; best = (x, y); }
-            }
+            if (!_grid.InBounds(x, y) || !IsDiggable(_grid[x, y])) continue;
+            if (_claims.Contains((x, y))) continue;
+            if (!HasAirNeighbor(x, y)) continue;
+            int dist = Math.Abs(X - x) + Math.Abs(Y - y);
+            if (dist < bestDist) { bestDist = dist; best = (x, y); }
         }
         return best;
     }

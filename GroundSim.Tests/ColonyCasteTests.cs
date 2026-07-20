@@ -213,7 +213,7 @@ public class MajorTests
         var colony = ColonyTestWorld.Founded(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0 });
         var site = (X0: 70, Y0: 30, X1: 80, Y1: 35);
-        colony.ActiveDigSite = site;
+        colony.ActiveDigSite = DigSite.FromRect(site.X0, site.Y0, site.X1, site.Y1); // Phase 11: DigSite type
         colony.SpoilDropX = 100;
         colony.Spawn(Caste.Major, colony.HomeCenter.X, colony.HomeCenter.Y);
 
