@@ -296,13 +296,19 @@ public class OffspringTests
             }
         }
 
-        // Expected: survival 0.35; of survivors Major 0.10, then 50/50
-        // Forager/Tender of the remainder (0.45 each). Generous tolerances —
-        // this is a distribution sanity check, not an RNG audit.
-        Assert.InRange(survived / (double)trials, 0.32, 0.38);
-        Assert.InRange(majors / (double)survived, 0.07, 0.13);
-        Assert.InRange(foragers / (double)survived, 0.40, 0.50);
-        Assert.InRange(tenders / (double)survived, 0.40, 0.50);
+        // Expectations derive from the live config (Phase 14: values are now
+        // the real game.js ports, and this test should keep verifying the
+        // roll logic against config rather than re-pinning magic numbers).
+        // Generous ±0.03 tolerances — a distribution sanity check, not an
+        // RNG audit.
+        double pSurvive = colony.Config.EggSurvivalChance;
+        double pMajor = colony.Config.MajorChance;
+        double pForager = (1 - pMajor) * colony.Config.ForagerShareOfRemainder;
+        double pTender = (1 - pMajor) * (1 - colony.Config.ForagerShareOfRemainder);
+        Assert.InRange(survived / (double)trials, pSurvive - 0.03, pSurvive + 0.03);
+        Assert.InRange(majors / (double)survived, pMajor - 0.03, pMajor + 0.03);
+        Assert.InRange(foragers / (double)survived, pForager - 0.03, pForager + 0.03);
+        Assert.InRange(tenders / (double)survived, pTender - 0.03, pTender + 0.03);
     }
 
     [Fact]

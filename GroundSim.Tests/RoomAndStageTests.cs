@@ -178,9 +178,10 @@ public class EndToEndStageTests
     [Fact]
     public void Stages1Through4_CompleteAcrossASpreadOfSeededRuns()
     {
-        // Spread-of-runs discipline: 10 seeds, not one playthrough. Timings
-        // below are measured but built on INVENTED ColonyConfig constants —
-        // placeholders until game.js values arrive.
+        // Spread-of-runs discipline: 10 seeds, not one playthrough. Phase 14:
+        // caste/egg/gather/trigger constants are now the real game.js ports;
+        // excavation-geometry constants remain invented (game.js has no
+        // analog for cell-by-cell digging).
         const int seeds = 10;
         const int maxTicks = 60_000; // Phase 12: organic founding + mound churn dig slower
         var firstWorker = new List<int>();
@@ -256,7 +257,7 @@ public class EndToEndStageTests
             var s = xs.OrderBy(v => v).ToList();
             return s[s.Count / 2];
         }
-        _output.WriteLine($"Milestone medians over {seeds} runs (ticks; INVENTED constants):");
+        _output.WriteLine($"Milestone medians over {seeds} runs (ticks; real game.js constants since Phase 14):");
         _output.WriteLine($"  first worker:      median {Median(firstWorker)}  (min {firstWorker.Min()}, max {firstWorker.Max()})");
         _output.WriteLine($"  garden excavated:  median {Median(gardenDone)}  (min {gardenDone.Min()}, max {gardenDone.Max()})");
         _output.WriteLine($"  nursery excavated: median {Median(nurseryDone)}  (min {nurseryDone.Min()}, max {nurseryDone.Max()})");

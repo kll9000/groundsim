@@ -3,56 +3,93 @@ namespace GroundSim;
 /// <summary>
 /// All tunable colony constants in one place.
 ///
-/// IMPORTANT: every value here is INVENTED for Phase 6 — Colony Builder's
-/// game.js (the ground truth for tuned values) was not available when this
-/// was written. Swap these for the real numbers when porting them; nothing
-/// else should need to change.
+/// Phase 14: the caste/egg/gather/room-trigger values below are now REAL,
+/// ported from Colony Builder's tuned game.js CONFIG. Conversion basis:
+/// 1 sim second = 30 ticks (the core TickClock default; the renderer's 60
+/// tps is a deliberate Phase 8 2× watchability fast-forward, not a sim-rate
+/// definition), and 1 grid cell = 8 px (game.js cell: 8; both worlds are
+/// 200 columns wide). Values NOT covered by game.js remain invented and are
+/// still marked as such (organic-excavation geometry, node regen, digger
+/// caps, mound tuning) — see the "known but unbuilt" section at the bottom
+/// for tuned values whose systems GroundSim doesn't have yet.
 /// </summary>
 public sealed class ColonyConfig
 {
-    /// <summary>Farmed resource the founding queen deposits (the fungal pellet).</summary>
-    public double StarterResource { get; init; } = 10;
+    /// <summary>Farmed resource the founding queen deposits (the fungal
+    /// pellet). game.js starterResource: 14 (mass, no conversion).</summary>
+    public double StarterResource { get; init; } = 14;
 
-    /// <summary>Ticks between eggs once the queen is laying.</summary>
-    public int EggLayIntervalTicks { get; init; } = 90;
+    /// <summary>Ticks between eggs once the queen is laying.
+    /// game.js offspringIntervalBase: 5.5 s × 30 tps = 165. Colony Builder
+    /// also has a two-speed fast rate (offspringIntervalFast: 3.2 s = 96
+    /// ticks once resource mass > offspringBoostThreshold: 30) that
+    /// GroundSim's single-rate model doesn't implement — structural gap,
+    /// flagged in the Phase 14 report, base rate only ported here.</summary>
+    public int EggLayIntervalTicks { get; init; } = 165;
 
-    /// <summary>Untended ticks for an egg to mature.</summary>
-    public int EggMaturationTicks { get; init; } = 600;
+    /// <summary>Untended ticks for an egg to mature.
+    /// game.js gestation: 5.5 s × 30 tps = 165.</summary>
+    public int EggMaturationTicks { get; init; } = 165;
 
-    /// <summary>Maturation speed multiplier while a Tender tends the egg.</summary>
+    /// <summary>Maturation speed multiplier while a Tender tends the egg.
+    /// game.js tendSpeedup: 2.0 (dimensionless).</summary>
     public int TendedMaturationSpeed { get; init; } = 2;
 
-    /// <summary>Fraction of matured eggs that survive ("most don't survive").</summary>
-    public double EggSurvivalChance { get; init; } = 0.35;
+    /// <summary>Fraction of matured eggs that survive ("most don't survive").
+    /// game.js survivalFraction: 0.3 (probability, no conversion).</summary>
+    public double EggSurvivalChance { get; init; } = 0.3;
 
     /// <summary>Rarest-first caste rolls: Major first, then Forager vs Tender
-    /// (Tender is the most-common default).</summary>
-    public double MajorChance { get; init; } = 0.10;
-    public double ForagerShareOfRemainder { get; init; } = 0.50;
+    /// (Tender is the most-common default). game.js majorFraction: 0.2 /
+    /// foragerFraction: 0.6 (probabilities, no conversion). NOTE: Colony
+    /// Builder gates these rolls behind population thresholds
+    /// (majorUnlockPopulation: 7, foragerUnlockPopulation: 4); GroundSim
+    /// rolls unconditionally from the start — structural gap, flagged in
+    /// the Phase 14 report, fractions only ported here.</summary>
+    public double MajorChance { get; init; } = 0.2;
+    public double ForagerShareOfRemainder { get; init; } = 0.6;
 
     /// <summary>Forager haul size: base minus distance falloff, floored.
-    /// Mirrors Colony Builder's gatherChunkBase/DistanceFactor/Min shape.</summary>
-    public double GatherChunkBase { get; init; } = 8.0;
-    public double GatherDistanceFalloff { get; init; } = 0.04;
-    public double GatherChunkMin { get; init; } = 1.0;
+    /// game.js gatherChunkBase: 15 / gatherChunkMin: 5 (mass, no
+    /// conversion); gatherChunkDistanceFactor: 0.02 per px × 8 px/cell =
+    /// 0.16 per cell (GroundSim distances are in cells). Haul hits the
+    /// floor at (15−5)/0.16 = 62.5 cells — identical to Colony Builder's
+    /// (15−5)/0.02 = 500 px = 62.5 cells.</summary>
+    public double GatherChunkBase { get; init; } = 15.0;
+    public double GatherDistanceFalloff { get; init; } = 0.16;
+    public double GatherChunkMin { get; init; } = 5.0;
 
-    /// <summary>Ticks a Tender spends converting 1 raw material into 1 farmed resource.</summary>
-    public int ProcessTicks { get; init; } = 20;
+    /// <summary>Ticks a Tender spends converting 1 raw material into 1
+    /// farmed resource. game.js processRate: 3.2 mass/s → 30 tps / 3.2 =
+    /// 9.375, rounded to 9 (int; ~4% faster than the true rate — the
+    /// nearest-integer error is smaller than one tick's worth).</summary>
+    public int ProcessTicks { get; init; } = 9;
 
-    /// <summary>Farmed resource mass at which the Fungus Garden triggers.</summary>
-    public double GardenTriggerThreshold { get; init; } = 30;
+    /// <summary>Farmed resource mass at which the Fungus Garden triggers.
+    /// game.js gardenCrowdedThreshold: 45 (mass, no conversion).</summary>
+    public double GardenTriggerThreshold { get; init; } = 45;
 
     /// <summary>Brood-pressure integral (sum of egg count per tick since
     /// founding) at which the Nursery triggers. An integral, not an
     /// instantaneous egg count — matching Colony Builder's own documented
-    /// finding that instantaneous checks near a cap almost never fire.</summary>
-    public double NurseryBroodPressureThreshold { get; init; } = 25_000;
+    /// finding that instantaneous checks near a cap almost never fire.
+    /// game.js nurseryBroodPressure: 140 egg·seconds × 30 tps = 4,200
+    /// egg·ticks. Cross-check via the nursery:garden ratio the Phase 14
+    /// handoff prescribed: 140/45 ≈ 3.11× the garden threshold per second
+    /// → 3.11 × 45 × 30 = 4,200 — both routes agree because the garden
+    /// threshold ported 1:1.</summary>
+    public double NurseryBroodPressureThreshold { get; init; } = 4_200;
 
-    /// <summary>Max idle Foragers assigned to assist room excavation.</summary>
+    /// <summary>Max idle Foragers assigned to assist room excavation.
+    /// STILL INVENTED — game.js has no analog (its maxGatherers: 4 caps
+    /// concurrent gatherers, a different concept; rooms there are carved
+    /// on timers, not excavated by workers).</summary>
     public int WorkerDiggers { get; init; } = 2;
 
     /// <summary>Resource-node regrowth per tick toward each node's cap
-    /// (Phase 9 sustain; 0 disables regeneration).</summary>
+    /// (Phase 9 sustain; 0 disables regeneration). STILL INVENTED —
+    /// game.js nodes have amount: Infinity, so it has no regen concept
+    /// at all.</summary>
     public double NodeRegenPerTick { get; init; } = 0.02;
 
     // ---- Phase 11 organic excavation (ALL INVENTED, in grid cells — the
@@ -134,4 +171,39 @@ public sealed class ColonyConfig
 
     public double HaulSize(double distanceFromHome)
         => Math.Max(GatherChunkMin, GatherChunkBase - GatherDistanceFalloff * distanceFromHome);
+
+    // ------------------------------------------------------------------
+    // Known tuned values for systems GroundSim does NOT have yet
+    // (Phase 14, Part C). Recorded here so future phases that build these
+    // systems start from Colony Builder's real numbers instead of
+    // inventing new placeholders. Rates are per SECOND in game.js —
+    // convert at 30 ticks/sec (and px→cell at 8 px/cell) when porting.
+    //
+    //  1. Population-gated caste rolls: foragerUnlockPopulation: 4,
+    //     majorUnlockPopulation: 7 (workers must exist before the caste
+    //     can be rolled at all; GroundSim currently rolls unconditionally).
+    //  2. Soldier caste: soldierUnlockPopulation: 5, soldierFraction: 0.15.
+    //  3. Queen/nuptial flight: matureWorkerPopulation: 20 (plus all four
+    //     room types present), queenFraction: 0.03 (rolled before Major —
+    //     rarest), newColonyMinDistance: 350 px ≈ 44 cells.
+    //  4. Waste system: wasteSystemUnlockRooms: 2, wasteFromDecayFraction:
+    //     0.6, wasteTriggerThreshold: 20, wasteCapacity: 40,
+    //     wasteOverflowPenalty: 3.0, wasteDrainRate: 0.5/s.
+    //  5. Contamination/grooming: contaminationRate: 0.15/s, groomRate:
+    //     1.0/s, groomThreshold: 3, contaminationCapacity: 25,
+    //     contaminationPenalty: 2.0 (stacks with waste overflow).
+    //  6. Pupa Chamber: pupaBroodPressure: 300 egg·s (= 9,000 egg·ticks),
+    //     pupaStageFraction: 0.6.
+    //  7. Two-speed egg laying: offspringIntervalFast: 3.2 s (= 96 ticks)
+    //     once resource mass > offspringBoostThreshold: 30.
+    //  8. Trail/pheromone field: trailDepositRate: 16.0/s, trailDecayRate:
+    //     0.5/s, trailMax: 8.0, trailFloor: 0.01, trailBaselineWeight: 1.0.
+    //  Also observed while porting (not in the handoff's list):
+    //  9. Resource decay: decayRate: 0.18 mass/s passive drain — GroundSim
+    //     has no decay at all; the waste/contamination penalties above are
+    //     multipliers ON this term, so those systems depend on it.
+    // 10. Egg pacing cap and recycling: maxOffspring: 6 (eggs alive at
+    //     once), recycleGain: 1.5 (resource per recycled egg) — GroundSim
+    //     has neither an egg cap nor recycling.
+    // ------------------------------------------------------------------
 }
