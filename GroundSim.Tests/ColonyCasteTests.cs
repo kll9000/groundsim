@@ -6,12 +6,13 @@ public static class ColonyTestWorld
 {
     public static (Grid grid, Simulation sim) Create()
     {
-        var grid = Grid.CreateTestWorld(120, 60, groundLevel: 30);
+        var grid = Grid.CreateTestWorld(240, 120, groundLevel: 60);
         var sim = new Simulation(grid);
         return (grid, sim);
     }
 
-    public static readonly (int X0, int Y0, int X1, int Y1) Chamber = (52, 30, 60, 33);
+    // Phase 15: the 9x4 fixed test chamber scales to 18x8 (same physical room).
+    public static readonly (int X0, int Y0, int X1, int Y1) Chamber = (104, 60, 121, 67);
 
     public static Colony Founded(Grid grid, Simulation sim, ColonyConfig? config = null)
         => Colony.CreateFounded(grid, sim, config ?? new ColonyConfig(), Chamber);
@@ -33,7 +34,7 @@ public class QueenTests
     {
         var (grid, sim) = ColonyTestWorld.Create();
         var chamber = ColonyTestWorld.Chamber;
-        var colony = Colony.Found(grid, sim, new ColonyConfig(), chamber, startX: 56, startY: 29);
+        var colony = Colony.Found(grid, sim, new ColonyConfig(), chamber, startX: 112, startY: 59);
 
         int foundingTicks = 0;
         while (colony.Queen.State == QueenState.Founding && foundingTicks < 30_000)
@@ -130,8 +131,8 @@ public class TenderTests
         var colony = ColonyTestWorld.Founded(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0 });
         // Tempting targets: full resource nodes right outside home.
-        colony.Nodes.Add(new ResourceNode(40, 29, 100));
-        colony.Nodes.Add(new ResourceNode(70, 29, 100));
+        colony.Nodes.Add(new ResourceNode(80, 59, 100));
+        colony.Nodes.Add(new ResourceNode(140, 59, 100));
         colony.Spawn(Caste.Tender, colony.HomeCenter.X, colony.HomeCenter.Y);
         colony.Spawn(Caste.Tender, colony.HomeCenter.X + 1, colony.HomeCenter.Y);
         colony.RawMaterial = 3; // some processing work, then idle/tending time
@@ -157,7 +158,7 @@ public class ForagerTests
         // node depletion to have exactly one cause — gathering.
         var colony = ColonyTestWorld.Founded(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0, NodeRegenPerTick = 0 });
-        var node = new ResourceNode(80, 29, 20);
+        var node = new ResourceNode(160, 59, 20);
         colony.Nodes.Add(node);
         colony.Spawn(Caste.Forager, colony.HomeCenter.X, colony.HomeCenter.Y);
 
@@ -258,7 +259,7 @@ public class MajorTests
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = ColonyTestWorld.Founded(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0 });
-        colony.Nodes.Add(new ResourceNode(40, 29, 100));
+        colony.Nodes.Add(new ResourceNode(80, 59, 100));
         colony.RawMaterial = 10;
         colony.Spawn(Caste.Major, colony.HomeCenter.X, colony.HomeCenter.Y);
         var majorPos = (colony.Majors[0].X, colony.Majors[0].Y);

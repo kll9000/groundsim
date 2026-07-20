@@ -103,14 +103,18 @@ public sealed class Colony
         if (SpoilDropX is { } fixedX) return fixedX;
         _spoilLeft = !_spoilLeft;
         int baseOffset = _entranceHalfWidth + 1 + _rng.Next(Config.MoundDropRange);
-        for (int o = baseOffset; o < baseOffset + 40; o++)
+        // Phase 15: outward-search span 40 → 40 × GridScale — a physical
+        // spread distance; unscaled it would cap the mound at half its
+        // intended physical width and pile too steeply at the shaft.
+        int span = 40 * ColonyConfig.GridScale;
+        for (int o = baseOffset; o < baseOffset + span; o++)
         {
             int x = Math.Clamp(EntranceX + (_spoilLeft ? -o : o), 1, Grid.Width - 2);
             int surf = 0;
             while (surf < Grid.Height && Grid.IsAir(x, surf)) surf++;
             if (_originalSurfaceY - surf < Config.MoundMaxHeight) return x;
         }
-        return Math.Clamp(EntranceX + (_spoilLeft ? -(baseOffset + 40) : baseOffset + 40), 1, Grid.Width - 2);
+        return Math.Clamp(EntranceX + (_spoilLeft ? -(baseOffset + span) : baseOffset + span), 1, Grid.Width - 2);
     }
 
     /// <summary>Standing maintenance digs (Phase 12): every completed

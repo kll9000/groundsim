@@ -78,7 +78,9 @@ public class RoomTests
         colony.Spawn(Caste.Major, colony.HomeCenter.X + 1, colony.HomeCenter.Y);
 
         colony.FarmedResource = config.GardenTriggerThreshold; // trigger Garden
-        ColonyTestWorld.Run(colony, sim, 8000);
+        // Phase 15: 8k → 64k (×8: the dig is ×GridScale² the cells and every
+        // haul walks ×GridScale the distance at 1 cell/tick).
+        ColonyTestWorld.Run(colony, sim, 64_000);
 
         var garden = colony.GetRoom(RoomType.Garden);
         Assert.NotNull(garden);
@@ -97,7 +99,7 @@ public class ColonyStageTests
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = Colony.Found(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0, EggLayIntervalTicks = 1_000_000 },
-            ColonyTestWorld.Chamber, startX: 56, startY: 29);
+            ColonyTestWorld.Chamber, startX: 112, startY: 59);
 
         Assert.Equal(ColonyStage.Founding, colony.CurrentStage);
 
@@ -183,19 +185,23 @@ public class EndToEndStageTests
         // excavation-geometry constants remain invented (game.js has no
         // analog for cell-by-cell digging).
         const int seeds = 10;
-        const int maxTicks = 60_000; // Phase 12: organic founding + mound churn dig slower
+        // Phase 15: 60k → 360k. Excavation is ×GridScale² the cells at an
+        // unchanged 1-cell-per-tick dig rate plus ×GridScale haul walks, so
+        // milestones inflate ~4-6×; the budget scales with generous headroom
+        // (it only bounds failure time — passing runs exit at the milestone).
+        const int maxTicks = 360_000;
         var firstWorker = new List<int>();
         var gardenDone = new List<int>();
         var nurseryDone = new List<int>();
 
         for (int seed = 1; seed <= seeds; seed++)
         {
-            var grid = Grid.CreateTestWorld(120, 60, groundLevel: 30, seed: seed);
+            var grid = Grid.CreateTestWorld(240, 120, groundLevel: 60, seed: seed);
             var sim = new Simulation(grid, seed: seed);
             // Phase 12: organic founding (shaft + chamber) — the product path.
-            var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 56, seed: seed);
-            colony.Nodes.Add(new ResourceNode(15, 29, 10_000));
-            colony.Nodes.Add(new ResourceNode(105, 29, 10_000));
+            var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 112, seed: seed);
+            colony.Nodes.Add(new ResourceNode(30, 59, 10_000));
+            colony.Nodes.Add(new ResourceNode(210, 59, 10_000));
 
             int t = 0;
             var m = colony.Milestones;

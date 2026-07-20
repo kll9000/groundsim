@@ -321,7 +321,19 @@ public sealed class Agent
     /// else: 1). Rock mining is open to ALL diggers — restricting it to
     /// Majors would recreate the waits-on-a-caste stall class; Majors still
     /// speed excavation the way they always have, by being extra diggers.
-    /// INVENTED constant, same status as ColonyConfig values.</summary>
+    /// INVENTED constant, same status as ColonyConfig values.
+    /// Phase 15: deliberately UNCHANGED at 4, and the reasoning matters.
+    /// The volume argument (a new cell holds 1/4 the rock, so 4 ÷ 4 = 1
+    /// tick) is real — but dirt is already pinned at the 1-tick-per-cell
+    /// floor and cannot scale the same way, so scaling rock alone to 1
+    /// would make rock cost IDENTICAL to dirt per cell, silently deleting
+    /// Phase 13's designed "rock digs slower than dirt" property as a side
+    /// effect of a resolution change. The designed semantic is the RATIO
+    /// (4× dirt), not an absolute mass/tick rate, so the ratio is what
+    /// survives rescaling: all excavation (dirt and rock alike) takes ~4×
+    /// the ticks for the same physical volume at GridScale 2 — a uniform,
+    /// flagged pacing consequence (see Phase 15 report), with relative
+    /// material hardness preserved exactly.</summary>
     public const int RockDigTicks = 4;
 
     private int _digProgress;

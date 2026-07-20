@@ -18,7 +18,11 @@ public static class MaskGenerator
     public static HashSet<(int X, int Y)> Tunnel(
         Grid grid, (int X, int Y) origin, (double X, double Y) target,
         double widthMin, double widthMax, double turnJitter, double maxDeviation,
-        Random rng, Func<(int X, int Y), bool>? arrived = null, int maxSteps = 400)
+        Random rng, Func<(int X, int Y), bool>? arrived = null,
+        // Phase 15: 400 → 800 (×GridScale). Steps are ~1 cell each and
+        // branch distances doubled; an unscaled cap would truncate long
+        // winding tunnels mid-flight (silent "never arrived" plan rejects).
+        int maxSteps = 400 * ColonyConfig.GridScale)
     {
         var mask = new HashSet<(int X, int Y)>();
         double px = origin.X + 0.5, py = origin.Y + 0.5;
@@ -57,6 +61,12 @@ public static class MaskGenerator
         int generations, int threshold, Random rng)
     {
         // +1.4 pad compensates for the pure CA rule eroding the noisy rim.
+        // Phase 15: the rim constants here (1.4 / 1.0 / 2.5 / 0.12) are
+        // deliberately UNSCALED — they're the blob's edge texture in cells,
+        // and at the finer grid that texture is proportionally finer, which
+        // is the added detail this phase exists for. If Kevin's visual check
+        // finds chamber edges too rough, these (with CaGenerations) are the
+        // knobs — flagged in the Phase 15 report.
         double r = Math.Sqrt(targetArea / Math.PI) + 1.4;
         int size = (int)Math.Ceiling(r * 2) + 10;
         double c = size / 2.0;

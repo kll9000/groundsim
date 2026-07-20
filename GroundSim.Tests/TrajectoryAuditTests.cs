@@ -97,12 +97,12 @@ public class ColonyTrajectoryAuditTests
     [InlineData(9)]
     public void FullColonyRun_EveryWorkerTransition_IsPhysicallyPlausible(int seed)
     {
-        var grid = Grid.CreateTestWorld(120, 60, groundLevel: 30, seed: seed);
+        var grid = Grid.CreateTestWorld(240, 120, groundLevel: 60, seed: seed);
         var sim = new Simulation(grid, seed: seed);
         // Phase 12: organic founding — audits movement through the shaft+chamber shape.
-        var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 56, seed: seed);
-        colony.Nodes.Add(new ResourceNode(15, 29, 500));
-        colony.Nodes.Add(new ResourceNode(105, 29, 500));
+        var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 112, seed: seed);
+        colony.Nodes.Add(new ResourceNode(30, 59, 500));
+        colony.Nodes.Add(new ResourceNode(210, 59, 500));
 
         var previous = new Dictionary<object, ((int X, int Y) Pos, bool Airborne)>();
         for (int t = 0; t < 9000; t++)

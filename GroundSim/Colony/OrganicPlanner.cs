@@ -20,6 +20,13 @@ public sealed record FoundingPlan(
 /// </summary>
 public static class OrganicPlanner
 {
+    // Phase 15: the grid-fineness factor. Every literal in this file that
+    // denotes a physical distance/offset (margins, jitters, shaft width,
+    // rect fallbacks, chimney) scales by S; areas scale by S*S; fractions
+    // (0.7 reachability, /10 already-air) and pure adjacency (halo radius
+    // 1, +1 below-parent) are scale-invariant and deliberately unscaled.
+    private const int S = ColonyConfig.GridScale;
+
     public static RoomPlan Plan(
         Grid grid, IReadOnlyList<Room> existingRooms, Room parent, RoomType type,
         ColonyConfig cfg, Random rng)
@@ -43,27 +50,27 @@ public static class OrganicPlanner
             // Shrink applies to AREA only — shrinking distance would pull
             // later attempts back toward whatever blocked the earlier ones.
             double shrink = 1.0 - 0.12 * (attempt - 1);
-            int area = Math.Max(12, (int)(Lerp(cfg.ChamberMinArea, cfg.ChamberMaxArea, rng.NextDouble()) * shrink));
+            int area = Math.Max(12 * S * S, (int)(Lerp(cfg.ChamberMinArea, cfg.ChamberMaxArea, rng.NextDouble()) * shrink));
             double dist = Lerp(cfg.RoomBranchMinDistance, cfg.RoomBranchMaxDistance, rng.NextDouble());
             double angle = Math.PI / 2 + (rng.NextDouble() * 2 - 1) * cfg.RoomBranchAngleSpread; // downward cone
 
             var target = (
                 X: (int)Math.Round(parentAnchor.X + Math.Cos(angle) * dist),
                 Y: (int)Math.Round(parentAnchor.Y + Math.Sin(angle) * dist));
-            int margin = 4;
+            int margin = 4 * S;
             // Prefer deeper-than-parent, but a parent near the world bottom
             // simply can't go deeper — clamp bounds must stay ordered (the
             // attempt then tries max depth and the overlap checks / fallback
             // handle the rest).
             int maxY = grid.Height - 1 - margin;
-            int minY = Math.Clamp(parentAnchor.Y + 3, margin, maxY);
+            int minY = Math.Clamp(parentAnchor.Y + 3 * S, margin, maxY);
             target = (
                 Math.Clamp(target.X, margin, grid.Width - 1 - margin),
                 Math.Clamp(target.Y, minY, maxY));
 
             var chamber = MaskGenerator.Chamber(grid, target, area,
                 cfg.ChamberEdgeNoise, cfg.CaGenerations, cfg.CaThreshold, rng);
-            if (chamber.Count < 12) continue; // degenerate blob
+            if (chamber.Count < 12 * S * S) continue; // degenerate blob (area floor, ×S²)
 
             // Chamber must be fresh ground: not near other rooms, not near
             // the parent (the tunnel provides the connection), and almost
@@ -92,9 +99,12 @@ public static class OrganicPlanner
                 cfg.TunnelWidthMin, cfg.TunnelWidthMax, cfg.TunnelTurnJitter, cfg.TunnelMaxDeviation,
                 rng, arrived: c => chamberHalo.Contains(c));
             // Widen the tunnel mouth at the parent wall (multi-cell junction).
-            for (int dy = -1; dy <= 1; dy++)
+            // Phase 15: radius scales — the widening exists so one settling
+            // particle can't seal the mouth, and particles are cell-sized,
+            // so this is a physical opening size, not an adjacency idiom.
+            for (int dy = -S; dy <= S; dy++)
             {
-                for (int dx = -1; dx <= 1; dx++)
+                for (int dx = -S; dx <= S; dx++)
                 {
                     int mx = origin.X + dx, my = origin.Y + dy;
                     if (grid.InBounds(mx, my)) tunnel.Add((mx, my));
@@ -110,7 +120,12 @@ public static class OrganicPlanner
                 && grid[c.X, c.Y] != CellMaterial.Air // Phase 13: rock is diggable, counts as junction
                 && (parentAir.Contains((c.X - 1, c.Y)) || parentAir.Contains((c.X + 1, c.Y))
                     || parentAir.Contains((c.X, c.Y - 1)) || parentAir.Contains((c.X, c.Y + 1))));
-            if (junction < 2) continue;
+            // Phase 15: 2 → 2*S. The handoff guessed counts are scale-
+            // invariant; this one is not — it's a physical opening width in
+            // disguise (2 fine cells = 1 old cell, exactly the single-cell
+            // fragility Phase 12.5 deemed seal-prone). Divergence flagged in
+            // the report.
+            if (junction < 2 * S) continue;
 
             var siteCells = new HashSet<(int, int)>(tunnel);
             siteCells.UnionWith(chamber);
@@ -141,9 +156,11 @@ public static class OrganicPlanner
             .ThenBy(c => Math.Abs(c.X - parent.Center.X))
             .ToList();
         var anchor = anchorCandidates.Count > 0 ? anchorCandidates[0] : parent.FloorSite(grid);
-        int fx0 = Math.Clamp(anchor.X - 3, 1, grid.Width - 7);
-        int fy0 = Math.Clamp(anchor.Y + 1, 1, grid.Height - 5);
-        var fallbackRoom = new Room(type, fx0, fy0, fx0 + 5, fy0 + 2);
+        // Phase 15: the 6×3-cell fallback rect scales to 6S×3S (same physical
+        // room); the +1 below-anchor stays (adjacency, not distance).
+        int fx0 = Math.Clamp(anchor.X - 3 * S, 1, grid.Width - 6 * S - 1);
+        int fy0 = Math.Clamp(anchor.Y + 1, 1, grid.Height - 3 * S - 2);
+        var fallbackRoom = new Room(type, fx0, fy0, fx0 + 6 * S - 1, fy0 + 3 * S - 1);
         return new RoomPlan(fallbackRoom, new DigSite(fallbackRoom.Cells), UsedFallback: true);
     }
 
@@ -158,7 +175,7 @@ public static class OrganicPlanner
     /// </summary>
     public static FoundingPlan PlanFounding(Grid grid, int entranceX, ColonyConfig cfg, Random rng)
     {
-        entranceX = Math.Clamp(entranceX, 6, grid.Width - 7);
+        entranceX = Math.Clamp(entranceX, 6 * S, grid.Width - 6 * S - 1);
         int surfaceY = 0;
         while (surfaceY < grid.Height && grid.IsAir(entranceX, surfaceY)) surfaceY++;
         var entrance = (X: entranceX, Y: Math.Max(0, surfaceY - 1));
@@ -166,16 +183,16 @@ public static class OrganicPlanner
         for (int attempt = 1; attempt <= cfg.MaskRetryAttempts; attempt++)
         {
             double shrink = 1.0 - 0.12 * (attempt - 1);
-            int area = Math.Max(12, (int)(Lerp(cfg.HomeChamberMinArea, cfg.HomeChamberMaxArea, rng.NextDouble()) * shrink));
+            int area = Math.Max(12 * S * S, (int)(Lerp(cfg.HomeChamberMinArea, cfg.HomeChamberMaxArea, rng.NextDouble()) * shrink));
             int shaftLen = (int)Lerp(cfg.ShaftMinLength, cfg.ShaftMaxLength, rng.NextDouble());
             var target = (
-                X: Math.Clamp(entranceX + rng.Next(-2, 3), 5, grid.Width - 6),
-                Y: Math.Clamp(surfaceY + shaftLen + 3, 5, grid.Height - 6));
+                X: Math.Clamp(entranceX + rng.Next(-2 * S, 2 * S + 1), 5 * S, grid.Width - 5 * S - 1),
+                Y: Math.Clamp(surfaceY + shaftLen + 3 * S, 5 * S, grid.Height - 5 * S - 1));
 
             var chamber = MaskGenerator.Chamber(grid, target, area,
                 cfg.ChamberEdgeNoise, cfg.CaGenerations, cfg.CaThreshold, rng);
-            if (chamber.Count < 12) continue;
-            if (chamber.Min(c => c.Y) < surfaceY + 4) continue; // must sit below a real shaft
+            if (chamber.Count < 12 * S * S) continue;
+            if (chamber.Min(c => c.Y) < surfaceY + 4 * S) continue; // must sit below a real shaft
             int alreadyAir = chamber.Count(c => grid.IsAir(c.X, c.Y));
             if (alreadyAir > chamber.Count / 10) continue;
 
@@ -185,7 +202,7 @@ public static class OrganicPlanner
             double ccx = chamber.Average(c => (double)c.X);
             double ccy = chamber.Average(c => (double)c.Y);
             var shaft = MaskGenerator.Tunnel(grid, entrance, (ccx, ccy),
-                widthMin: 2, widthMax: 2, cfg.ShaftTurnJitter, cfg.ShaftMaxDeviation,
+                widthMin: 2 * S, widthMax: 2 * S, cfg.ShaftTurnJitter, cfg.ShaftMaxDeviation,
                 rng, arrived: c => chamberHalo.Contains(c));
             if (!shaft.Any(c => chamberHalo.Contains(c))) continue;
 
@@ -197,18 +214,20 @@ public static class OrganicPlanner
             AddChimney(siteCells, grid, entranceX, surfaceY);
             return new FoundingPlan(
                 new Room(RoomType.Home, chamber), new DigSite(siteCells),
-                entrance, EntranceHalfWidth: 2, UsedFallback: false);
+                entrance, EntranceHalfWidth: 2 * S, UsedFallback: false);
         }
 
         // Fallback of last resort: the pre-Phase-12 simple rect chamber dug
         // straight down from the surface. Guaranteed constructible.
-        int x0 = Math.Clamp(entranceX - 4, 1, grid.Width - 10);
-        int y0 = Math.Clamp(surfaceY, 1, grid.Height - 5);
-        var room = new Room(RoomType.Home, x0, y0, x0 + 8, y0 + 3);
+        // Phase 15: the 9×4-cell fallback chamber scales to 9S×4S (same
+        // physical room), and its clamps scale with it.
+        int x0 = Math.Clamp(entranceX - 4 * S, 1, grid.Width - 9 * S - 1);
+        int y0 = Math.Clamp(surfaceY, 1, grid.Height - 4 * S - 1);
+        var room = new Room(RoomType.Home, x0, y0, x0 + 9 * S - 1, y0 + 4 * S - 1);
         var fallbackCells = new HashSet<(int, int)>(room.Cells);
         AddChimney(fallbackCells, grid, entranceX, surfaceY);
         return new FoundingPlan(room, new DigSite(fallbackCells),
-            entrance, EntranceHalfWidth: 5, UsedFallback: true);
+            entrance, EntranceHalfWidth: 5 * S, UsedFallback: true);
     }
 
     /// <summary>
@@ -223,10 +242,15 @@ public static class OrganicPlanner
     /// </summary>
     internal static void AddChimney(HashSet<(int, int)> site, Grid grid, int entranceX, int surfaceY)
     {
-        int top = Math.Max(1, surfaceY - 12);
+        // Phase 15: height 12 → 12*S (must clear the scaled MoundMaxHeight,
+        // preserving the old 12-vs-7 headroom ratio as 24-vs-14); width
+        // ±1 → ±S (the physical entrance-hole width — must stay at least as
+        // wide as the scaled 2S shaft bore, preserving the old 3-covers-2
+        // relationship as 2S+1 covers 2S).
+        int top = Math.Max(1, surfaceY - 12 * S);
         for (int y = top; y < surfaceY; y++)
         {
-            for (int x = entranceX - 1; x <= entranceX + 1; x++)
+            for (int x = entranceX - S; x <= entranceX + S; x++)
             {
                 if (grid.InBounds(x, y)) site.Add((x, y));
             }

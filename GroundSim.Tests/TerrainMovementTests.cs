@@ -137,9 +137,9 @@ public class SurfaceMovementTests
         // is now TrajectoryAuditTests.
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = Colony.Found(grid, sim, new ColonyConfig(),
-            ColonyTestWorld.Chamber, startX: 56, startY: 29, seed: 5);
-        colony.Nodes.Add(new ResourceNode(15, 29, 10_000));
-        colony.Nodes.Add(new ResourceNode(105, 29, 10_000));
+            ColonyTestWorld.Chamber, startX: 112, startY: 59, seed: 5);
+        colony.Nodes.Add(new ResourceNode(30, 59, 10_000));
+        colony.Nodes.Add(new ResourceNode(210, 59, 10_000));
 
         ColonyTestWorld.Run(colony, sim, 12_000);
 
@@ -200,22 +200,24 @@ public class SurfaceMovementTests
     public void SupportChecks_DoNotReintroduceGridScaleCost()
     {
         // Threshold rationale: support checks are O(column height) per agent
-        // per tick, NOT per grid cell. This colony run (120x60 grid, dozens
-        // of workers, 8000 ticks) measured ~1 s locally; 5 s gives CI slack
-        // while still failing hard on an accidental per-tick O(grid) sweep
-        // (7200 cells x 8000 ticks of even trivial per-cell work busts it).
+        // per tick, NOT per grid cell. Phase 15: run 8k → 60k ticks (the
+        // finer grid founds ~8× slower, and the "did real work" guard below
+        // needs workers gathering); limit 5 s → 30 s, scaled with the tick
+        // count — still failing hard on an accidental per-tick O(grid)
+        // sweep (28,800 cells × 60k ticks of even trivial per-cell work
+        // busts it by orders of magnitude).
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = Colony.Found(grid, sim, new ColonyConfig(),
-            ColonyTestWorld.Chamber, startX: 56, startY: 29, seed: 6);
-        colony.Nodes.Add(new ResourceNode(15, 29, 10_000));
-        colony.Nodes.Add(new ResourceNode(105, 29, 10_000));
+            ColonyTestWorld.Chamber, startX: 112, startY: 59, seed: 6);
+        colony.Nodes.Add(new ResourceNode(30, 59, 10_000));
+        colony.Nodes.Add(new ResourceNode(210, 59, 10_000));
 
         var sw = Stopwatch.StartNew();
-        ColonyTestWorld.Run(colony, sim, 8000);
+        ColonyTestWorld.Run(colony, sim, 60_000);
         sw.Stop();
 
-        Assert.True(sw.ElapsedMilliseconds < 5000,
-            $"8000-tick colony run took {sw.ElapsedMilliseconds} ms (limit 5000 ms)");
+        Assert.True(sw.ElapsedMilliseconds < 30_000,
+            $"60000-tick colony run took {sw.ElapsedMilliseconds} ms (limit 30000 ms)");
         Assert.True(colony.Stats.RawGatheredByForagers > 0, "run should have done real work");
     }
 }
@@ -228,7 +230,7 @@ public class ResourceSustainTests
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = ColonyTestWorld.Founded(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0, NodeRegenPerTick = 0.5 });
-        var node = new ResourceNode(40, 29, 10);
+        var node = new ResourceNode(80, 59, 10);
         colony.Nodes.Add(node);
         node.Remaining = 0;
 
@@ -255,8 +257,8 @@ public class ResourceSustainTests
             NurseryBroodPressureThreshold = double.MaxValue,
             NodeRegenPerTick = 0.05,
         });
-        colony.Nodes.Add(new ResourceNode(30, 29, 25));
-        colony.Nodes.Add(new ResourceNode(90, 29, 25));
+        colony.Nodes.Add(new ResourceNode(60, 59, 25)); // Phase 15: ×GridScale, on the new surface
+        colony.Nodes.Add(new ResourceNode(180, 59, 25));
         colony.Spawn(Caste.Forager, colony.HomeCenter.X, colony.HomeCenter.Y);
         colony.Spawn(Caste.Forager, colony.HomeCenter.X + 1, colony.HomeCenter.Y);
 

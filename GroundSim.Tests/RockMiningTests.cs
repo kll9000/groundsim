@@ -64,7 +64,9 @@ public class RockMiningTests
         colony.Spawn(Caste.Major, colony.HomeCenter.X + 1, colony.HomeCenter.Y);
         colony.FarmedResource = config.GardenTriggerThreshold;
 
-        ColonyTestWorld.Run(colony, sim, 25_000);
+        // Phase 15: 25k → 200k (×8: the dig is ×GridScale² the cells and
+        // every haul walks ×GridScale the distance at 1 cell/tick).
+        ColonyTestWorld.Run(colony, sim, 200_000);
 
         var garden = colony.GetRoom(RoomType.Garden);
         Assert.NotNull(garden);

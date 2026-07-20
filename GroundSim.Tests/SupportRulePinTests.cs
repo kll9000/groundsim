@@ -36,12 +36,12 @@ public class SupportRuleImplementationPinTests
 
         for (int seed = 1; seed <= seeds; seed++)
         {
-            var grid = Grid.CreateTestWorld(120, 60, groundLevel: 30, seed: seed);
+            var grid = Grid.CreateTestWorld(240, 120, groundLevel: 60, seed: seed);
             var sim = new Simulation(grid, seed: seed);
             // Phase 12: organic founding — covers the shaft+chamber home shape.
-            var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 56, seed: seed);
-            colony.Nodes.Add(new ResourceNode(15, 29, 500));
-            colony.Nodes.Add(new ResourceNode(105, 29, 500));
+            var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 112, seed: seed);
+            colony.Nodes.Add(new ResourceNode(30, 59, 500));
+            colony.Nodes.Add(new ResourceNode(210, 59, 500));
 
             for (int t = 0; t < totalTicks; t++)
             {
@@ -68,12 +68,12 @@ public class SupportRuleImplementationPinTests
     {
         for (int seed = 1; seed <= 3; seed++)
         {
-            var grid = Grid.CreateTestWorld(120, 60, groundLevel: 30, seed: seed);
+            var grid = Grid.CreateTestWorld(240, 120, groundLevel: 60, seed: seed);
             var sim = new Simulation(grid, seed: seed);
             // Phase 12: organic founding — covers the shaft+chamber home shape.
-            var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 56, seed: seed);
-            colony.Nodes.Add(new ResourceNode(15, 29, 500));
-            colony.Nodes.Add(new ResourceNode(105, 29, 500));
+            var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 112, seed: seed);
+            colony.Nodes.Add(new ResourceNode(30, 59, 500));
+            colony.Nodes.Add(new ResourceNode(210, 59, 500));
 
             for (int t = 0; t < 10_000; t++)
             {

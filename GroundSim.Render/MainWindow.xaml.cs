@@ -55,7 +55,8 @@ public partial class MainWindow : Window
             // Start focused on the founding site at a comfortable zoom.
             _camera.ZoomAt(0, 0, 2.0 / _camera.Zoom);
             var home = _colony.HomeCenter;
-            _camera.CenterOn((home.X + 0.5) * GridRenderer.CellSize, (home.Y - 6) * GridRenderer.CellSize,
+            // Phase 15: -6 → -6 × GridScale, framing the same physical spot.
+            _camera.CenterOn((home.X + 0.5) * GridRenderer.CellSize, (home.Y - 6 * ColonyConfig.GridScale) * GridRenderer.CellSize,
                 ViewportHost.ActualWidth, ViewportHost.ActualHeight);
             ViewportHost.Focus();
         };

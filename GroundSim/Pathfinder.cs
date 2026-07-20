@@ -23,7 +23,12 @@ public static class Pathfinder
     /// hit, treated as unreachable).
     /// </summary>
     public static List<(int X, int Y)>? FindPath(
-        Grid grid, (int X, int Y) start, (int X, int Y) goal, int maxExpansions = 50_000)
+        Grid grid, (int X, int Y) start, (int X, int Y) goal,
+        // Phase 15: 50k → 200k (×GridScale²). The cap bounds the explored
+        // node set, and the finer grid quadruples the nodes along the same
+        // physical routes — an unscaled cap would silently reclassify
+        // long-but-real routes as unreachable (stalls, not crashes).
+        int maxExpansions = 50_000 * ColonyConfig.GridScale * ColonyConfig.GridScale)
     {
         if (start == goal) return new List<(int, int)>();
         if (!grid.InBounds(goal.X, goal.Y) || !grid.IsAir(goal.X, goal.Y)) return null;

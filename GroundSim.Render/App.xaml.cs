@@ -41,7 +41,11 @@ public partial class App : Application
         }
 
         int maxDirty = 0;
-        const int ticks = 40_000; // Phase 13: bigger chambers + rock chipping found slower
+        // Phase 15: 40k → 160k. Same physical excavation is ~4× the cells at
+        // an unchanged 1-cell-per-tick dig rate (and hauls walk 2× the
+        // cells), so tick-denominated milestones inflate ~4×; the budget
+        // scales with them.
+        const int ticks = 160_000;
         var sw = Stopwatch.StartNew();
         for (int t = 0; t < ticks; t++)
         {
