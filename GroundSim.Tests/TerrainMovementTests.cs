@@ -18,7 +18,12 @@ public class TerrainRuleTests
 
         Assert.True(Terrain.IsSupported(grid, 10, 14));    // standing on ground
         Assert.False(Terrain.IsSupported(grid, 10, 8));    // free open air: falls
-        Assert.True(Terrain.IsSupported(grid, 5, 12));     // enclosed: climbable
+        // Phase 11 update: support is pure 3×3 contact. A cell two rows below
+        // a roof has nothing to touch — no longer supported (the old
+        // enclosed-branch behavior); the cell DIRECTLY under the roof clings
+        // to the ceiling and is.
+        Assert.False(Terrain.IsSupported(grid, 5, 12));
+        Assert.True(Terrain.IsSupported(grid, 5, 11));     // ceiling cling
         // Wall-cling (the flagged deviation): surface-open but beside solid.
         grid[8, 8] = CellMaterial.Rock;
         Assert.True(Terrain.IsSupported(grid, 9, 8));
@@ -161,27 +166,31 @@ public class SurfaceMovementTests
     }
 
     [Fact]
-    public void OracleAndProductionRule_DivergeOnDistantRoof_DocumentedEdgeCase()
+    public void OracleAndProductionRule_AgreeOnDistantRoof_DivergenceResolved()
     {
-        // Phase 9.5, item 1 finding pinned as a KNOWN THEORETICAL EDGE CASE:
-        // IsSupported's enclosed/roof branch calls a contact-free cell
-        // "supported" when solid material exists anywhere overhead in its
-        // column — here, seven rows up. The independent oracle disagrees.
-        // The 5-seed × 15k-tick colony audit found ZERO real occurrences
-        // (colony excavations are open pits; the enclosed branch never fires
-        // for contact-free cells in practice), so per the handoff this is
-        // documented, not fixed. If room shapes ever gain real roofs, this
-        // test is the marker for re-opening that decision.
+        // History: Phase 9.5 documented this exact geometry as the one KNOWN
+        // divergence between IsSupported (whose enclosed/roof branch called a
+        // contact-free cell under a distant overhang "supported") and the
+        // visual-floating oracle — harmless while all excavations were open
+        // pits, and explicitly designated the marker for re-opening the
+        // decision "if room shapes ever gain real roofs." Phase 11's organic
+        // chambers ARE real roofed rooms, which made the divergence live, so
+        // the rule was unified to pure 3×3 contact. This test now pins the
+        // AGREEMENT (and remains meaningful because the two functions are
+        // implemented independently).
         var grid = new Grid(20, 20);
         for (int x = 0; x < 20; x++) grid[x, 15] = CellMaterial.Dirt; // floor
         grid[10, 5] = CellMaterial.Rock; // overhang, seven rows above (10,12)
 
-        Assert.True(Terrain.IsSupported(grid, 10, 12),
-            "production rule: enclosed-by-distant-roof counts as supported (current behavior)");
-        Assert.True(Terrain.IsVisiblyFloating(grid, 10, 12),
-            "oracle: nothing in the 3×3 neighborhood — visibly floating");
+        Assert.False(Terrain.IsSupported(grid, 10, 12),
+            "distant roof provides no contact — unsupported");
+        Assert.True(Terrain.IsVisiblyFloating(grid, 10, 12));
 
-        // One column over (no overhang): both agree it falls/floats.
+        // Directly under the overhang: ceiling contact — both agree, again.
+        Assert.True(Terrain.IsSupported(grid, 10, 6));
+        Assert.False(Terrain.IsVisiblyFloating(grid, 10, 6));
+
+        // One column over (no overhang): unchanged agreement.
         Assert.False(Terrain.IsSupported(grid, 11, 12));
         Assert.True(Terrain.IsVisiblyFloating(grid, 11, 12));
     }

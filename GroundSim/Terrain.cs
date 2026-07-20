@@ -71,14 +71,29 @@ public static class Terrain
     /// </summary>
     public static bool IsSupported(Grid grid, int x, int y)
     {
-        // O(1) contact checks first — the column scan only runs for cells
-        // with no solid contact at all (free air, or the interior of a large
-        // enclosed cavern). Out-of-bounds sides read as walls, which
-        // conveniently treats the grid edge as a climbable boundary.
-        if (y >= grid.Height - 1) return true;            // grid bottom
-        if (!grid.IsAir(x, y + 1)) return true;           // standing on solid
-        if (!grid.IsAir(x - 1, y) || !grid.IsAir(x + 1, y)) return true;         // wall-cling
-        if (!grid.IsAir(x - 1, y + 1) || !grid.IsAir(x + 1, y + 1)) return true; // corner-cling
-        return !IsSurfaceOpen(grid, x, y);                // enclosed: climbable
+        // Phase 11 unification: support is pure 3×3 CONTACT — solid anywhere
+        // in the 8-neighborhood (floor, wall, corner, or ceiling to cling to)
+        // or the grid bottom/edge. The former enclosed/roof branch ("any
+        // roofed cell is climbable regardless of contact") was the Phase 9.5
+        // documented divergence from the visual-floating oracle; it was
+        // harmless while every excavation was an open pit, but Phase 11's
+        // enclosed organic chambers made it live — a chamber-interior cell
+        // with no contact would have counted as supported while visibly
+        // floating mid-room. Under contact-based support, tunnels (≤3 wide,
+        // every cell touches a wall) behave exactly as before; chamber
+        // interiors are fall-through air, so agents traverse chambers along
+        // their floors, walls, and ceilings like actual ants.
+        // Deliberately implemented independently of IsVisiblyFloating so the
+        // rule-vs-oracle audit tests remain a meaningful gate.
+        if (y >= grid.Height - 1) return true; // grid bottom
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                if (dx == 0 && dy == 0) continue;
+                if (!grid.IsAir(x + dx, y + dy)) return true; // out-of-bounds reads as wall
+            }
+        }
+        return false;
     }
 }
