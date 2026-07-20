@@ -1,13 +1,27 @@
 <Window x:Class="GroundSim.Render.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="GroundSim — Colony Prototype" SizeToContent="WidthAndHeight" ResizeMode="CanMinimize"
-        Background="#181A22">
-    <StackPanel>
-        <Image x:Name="SurfaceImage"
-               RenderOptions.BitmapScalingMode="NearestNeighbor"
-               Stretch="None"/>
-        <TextBlock x:Name="StatusText" Foreground="#CCCCCC" FontFamily="Consolas"
-                   Margin="6,2" Text="starting..."/>
-    </StackPanel>
+        Title="GroundSim — Colony Prototype"
+        Width="1600" Height="900" Background="#181A22">
+    <!-- Fixed window size (not SizeToContent): the Phase 10 camera-shift bug
+         was the window resizing to track the status text's fluctuating width
+         and re-centering the image. Window size is now never content-driven. -->
+    <DockPanel>
+        <TextBlock x:Name="StatusText" DockPanel.Dock="Bottom"
+                   Foreground="#CCCCCC" FontFamily="Consolas" Margin="6,3"
+                   TextTrimming="CharacterEllipsis" Text="starting..."/>
+        <Border x:Name="ViewportHost" ClipToBounds="True" Background="#101218"
+                Focusable="True">
+            <Image x:Name="SurfaceImage" Stretch="None"
+                   RenderOptions.BitmapScalingMode="NearestNeighbor"
+                   HorizontalAlignment="Left" VerticalAlignment="Top">
+                <Image.RenderTransform>
+                    <TransformGroup>
+                        <ScaleTransform x:Name="ZoomTransform"/>
+                        <TranslateTransform x:Name="PanTransform"/>
+                    </TransformGroup>
+                </Image.RenderTransform>
+            </Image>
+        </Border>
+    </DockPanel>
 </Window>
