@@ -122,8 +122,11 @@ public sealed class ColonyConfig
     /// is already this many cells above the original surface, the drop point
     /// walks outward to the next lower column. Without a cap, the inner slope
     /// grows until it continuously drains back down the entrance shaft and
-    /// excavation reaches equilibrium with the refill (measured stall).</summary>
-    public int MoundMaxHeight { get; init; } = 4;
+    /// excavation reaches equilibrium with the refill (measured stall).
+    /// Phase 13-DF: raised 4 → 7 — the cap was tuned for frictionless dirt;
+    /// with DirtSlideChance friction, slopes hold and the mound can build
+    /// real height without re-plugging the shaft (re-measured).</summary>
+    public int MoundMaxHeight { get; init; } = 7;
 
     /// <summary>Buffer margin (cells) kept between new masks and existing
     /// rooms, except at the deliberate tunnel connection.</summary>

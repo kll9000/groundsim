@@ -46,11 +46,20 @@ public sealed class Simulation
 
     /// <summary>
     /// Probability that a blocked LooseRock particle attempts a diagonal slide
-    /// on a given tick instead of settling immediately. Dirt always slides
-    /// when a diagonal is open; rock usually locks in place, producing
-    /// visibly steeper/narrower piles than dirt.
+    /// on a given tick instead of settling immediately. Rock usually locks in
+    /// place, producing visibly steeper/narrower piles than dirt.
     /// </summary>
     public const double RockSlideChance = 0.25;
+
+    /// <summary>
+    /// Dirt friction (Phase 13-DF): probability a blocked Dirt particle
+    /// attempts the diagonal slide instead of settling in place. Dirt slid
+    /// unconditionally since Phase 2 ("slippery balls" — piles could only
+    /// spread, never build height); real soil has friction. Chosen between
+    /// rock's 0.25 (dirt is looser than rock chunks) and the old effective
+    /// 1.0. INVENTED constant like everything pending game.js.
+    /// </summary>
+    public const double DirtSlideChance = 0.6;
 
     /// <summary>
     /// Advances all active particles by one step. Rules per particle:
@@ -58,10 +67,12 @@ public sealed class Simulation
     ///  2. Else the material decides:
     ///     - Stick: settle where it landed — sticks never slide diagonally.
     ///     - LooseRock: with probability <see cref="RockSlideChance"/> try a
-    ///       diagonal slide (as dirt below); otherwise settle immediately.
-    ///     - Dirt (and anything else): if a diagonal-down cell AND the side
-    ///       cell on that same side (same row as the particle) are both Air,
-    ///       slide to the diagonal. Requiring the side cell prevents cutting
+    ///       diagonal slide; otherwise settle immediately.
+    ///     - Dirt: same mechanism at <see cref="DirtSlideChance"/> — real
+    ///       friction, looser than rock but no longer frictionless.
+    ///     - Anything else: if a diagonal-down cell AND the side cell on
+    ///       that same side (same row as the particle) are both Air, slide
+    ///       to the diagonal. Requiring the side cell prevents cutting
     ///       through a solid corner. When both sides are open, one is chosen
     ///       randomly to avoid a directional bias in pile shapes.
     ///  3. Else settle: write the material into the grid and deactivate.
@@ -98,6 +109,12 @@ public sealed class Simulation
             }
 
             if (p.Material == CellMaterial.LooseRock && _rng.NextDouble() >= RockSlideChance)
+            {
+                Settle(i, p);
+                continue;
+            }
+
+            if (p.Material == CellMaterial.Dirt && _rng.NextDouble() >= DirtSlideChance)
             {
                 Settle(i, p);
                 continue;

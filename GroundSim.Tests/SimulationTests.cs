@@ -70,19 +70,24 @@ public class ParticleTests
     [Fact]
     public void DroppedParticle_SlidesDiagonally_WhenDirectlyBlocked()
     {
+        // Phase 13-DF update: dirt now has friction (DirtSlideChance), so a
+        // single particle may legitimately settle atop the obstacle. The
+        // slide MECHANIC is what this test guards — over several drops, at
+        // least one must slide down beside the obstacle.
         var grid = new Grid(10, 10);
         for (int x = 0; x < 10; x++) grid[x, 9] = CellMaterial.Rock; // floor
         grid[5, 8] = CellMaterial.Rock; // single-cell obstacle on the floor
 
         var sim = new Simulation(grid);
-        sim.Drop(5, 0, CellMaterial.Dirt);
-        sim.RunUntilSettled();
+        for (int i = 0; i < 6; i++)
+        {
+            sim.Drop(5, 0, CellMaterial.Dirt);
+            sim.RunUntilSettled();
+        }
 
-        // Blocked directly below → must have slid to one diagonal and landed
-        // beside the obstacle on the floor.
         Assert.True(
             grid[4, 8] == CellMaterial.Dirt || grid[6, 8] == CellMaterial.Dirt,
-            "Particle should settle diagonally beside the obstacle");
+            "Across several drops, at least one particle should slide beside the obstacle");
         Assert.Equal(CellMaterial.Rock, grid[5, 8]);
     }
 
