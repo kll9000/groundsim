@@ -120,6 +120,12 @@ public sealed class Room
     {
         foreach (var (x, y) in _cells)
         {
+            // Phase 12 verification finding, closed in the Phase 19.5
+            // follow-up: DigSite.HasRemainingDiggable guards this read but
+            // Room's did not, despite the doc claiming identical semantics —
+            // and Grid's indexer does no bounds checking, so an out-of-bounds
+            // room cell would throw or misread rather than be skipped.
+            if (!grid.InBounds(x, y)) continue;
             if (grid[x, y] == CellMaterial.Air) continue;
             if (grid.IsAir(x - 1, y) || grid.IsAir(x + 1, y)
                 || grid.IsAir(x, y - 1) || grid.IsAir(x, y + 1))
