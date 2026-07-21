@@ -158,9 +158,80 @@ public static class OrganicPlanner
         var anchor = anchorCandidates.Count > 0 ? anchorCandidates[0] : parent.FloorSite(grid);
         // Phase 15: the 6×3-cell fallback rect scales to 6S×3S (same physical
         // room); the +1 below-anchor stays (adjacency, not distance).
-        int fx0 = Math.Clamp(anchor.X - 3 * S, 1, grid.Width - 6 * S - 1);
-        int fy0 = Math.Clamp(anchor.Y + 1, 1, grid.Height - 3 * S - 2);
-        var fallbackRoom = new Room(type, fx0, fy0, fx0 + 6 * S - 1, fy0 + 3 * S - 1);
+        //
+        // Phase 18.5: the rect must not land ON an existing room, and must
+        // keep a real air junction to the excavated nest. The original
+        // glue-below-parent placement predates multi-room nests; once
+        // several rooms stack under Home, the anchor's below-space may BE a
+        // sibling room. Measured consequence at seed 6: a garden fallback
+        // overlapped the Food-storage rect, leaving a degenerate 3-cell
+        // site that hit the unreachable-target blacklist livelock Phase 15
+        // had documented as impossible from planner geometry — so
+        // non-overlap is a correctness requirement here, not cosmetics.
+        // Candidate search, bounded: the classic glue spot first, then
+        // positions below and beside each excavated room (nests grow
+        // outward/downward), each requiring (a) zero overlap with ANY
+        // room's cells and (b) ≥2S rect cells adjacent to the anchor
+        // room's air (the junction-redundancy rule — a sealed rect would
+        // be a born-dead site). Last resort if nothing fits: the original
+        // glue position, overlap and all — the cannot-fail guarantee holds.
+        int glueX = Math.Clamp(anchor.X - 3 * S, 1, grid.Width - 6 * S - 1);
+        int glueY = Math.Clamp(anchor.Y + 1, 1, grid.Height - 3 * S - 2);
+
+        bool InBounds(int x0, int y0) =>
+            x0 >= 1 && y0 >= 1 && x0 + 6 * S - 1 <= grid.Width - 2 && y0 + 3 * S - 1 <= grid.Height - 2;
+        bool OverlapsAnyRoom(int x0, int y0)
+        {
+            foreach (var room in existingRooms)
+            {
+                foreach (var (cx, cy) in room.Cells)
+                {
+                    if (cx >= x0 && cx < x0 + 6 * S && cy >= y0 && cy < y0 + 3 * S) return true;
+                }
+            }
+            return false;
+        }
+        int AirJunction(int x0, int y0, Room touch)
+        {
+            int n = 0;
+            foreach (var (cx, cy) in touch.Cells)
+            {
+                if (!grid.IsAir(cx, cy)) continue;
+                // touch-cell adjacent to any rect cell?
+                bool adj = (cx >= x0 - 1 && cx <= x0 + 6 * S && cy >= y0 && cy < y0 + 3 * S)
+                        || (cy >= y0 - 1 && cy <= y0 + 3 * S && cx >= x0 && cx < x0 + 6 * S);
+                if (adj && (cx == x0 - 1 || cx == x0 + 6 * S || cy == y0 - 1 || cy == y0 + 3 * S
+                            || (cx >= x0 && cx < x0 + 6 * S && cy >= y0 && cy < y0 + 3 * S))) n++;
+            }
+            return n;
+        }
+        RoomPlan? TryCandidate(int x0, int y0, Room touch)
+        {
+            if (!InBounds(x0, y0) || OverlapsAnyRoom(x0, y0)) return null;
+            if (AirJunction(x0, y0, touch) < 2 * S) return null;
+            var room = new Room(type, x0, y0, x0 + 6 * S - 1, y0 + 3 * S - 1);
+            return new RoomPlan(room, new DigSite(room.Cells), UsedFallback: true);
+        }
+
+        var anchors = new List<Room> { parent };
+        anchors.AddRange(existingRooms.Where(r => r.Excavated && r != parent));
+        foreach (var touch in anchors)
+        {
+            // Below the room, scanning across its width; then flanking left
+            // and right, scanning down its height.
+            for (int x0 = touch.X0 - 3 * S; x0 <= touch.X1 + 1; x0 += 3 * S)
+            {
+                if (TryCandidate(x0, touch.Y1 + 1, touch) is { } below) return below;
+            }
+            for (int y0 = touch.Y0; y0 <= touch.Y1 + 1; y0 += 3 * S)
+            {
+                if (TryCandidate(touch.X1 + 1, y0, touch) is { } right) return right;
+                if (TryCandidate(touch.X0 - 6 * S, y0, touch) is { } left) return left;
+            }
+        }
+
+        // Absolute last resort: the pre-18.5 glue placement.
+        var fallbackRoom = new Room(type, glueX, glueY, glueX + 6 * S - 1, glueY + 3 * S - 1);
         return new RoomPlan(fallbackRoom, new DigSite(fallbackRoom.Cells), UsedFallback: true);
     }
 

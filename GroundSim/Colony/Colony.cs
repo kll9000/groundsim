@@ -408,13 +408,13 @@ public sealed class Colony
 
         if (GetRoom(RoomType.Garden) is null && FarmedResource >= Config.GardenTriggerThreshold)
         {
-            AddPlannedRoom(RoomType.Garden);
+            QueueRoomPlan(RoomType.Garden);
             Milestones.GardenTriggeredTick ??= TickCount;
         }
 
         if (GetRoom(RoomType.Nursery) is null && BroodPressure >= Config.NurseryBroodPressureThreshold)
         {
-            AddPlannedRoom(RoomType.Nursery);
+            QueueRoomPlan(RoomType.Nursery);
             Milestones.NurseryTriggeredTick ??= TickCount;
         }
 
@@ -424,12 +424,50 @@ public sealed class Colony
         if (GetRoom(RoomType.FoodStorage) is null
             && Stats.RawGatheredByForagers >= Config.FoodStorageTriggerThreshold)
         {
-            AddPlannedRoom(RoomType.FoodStorage);
+            QueueRoomPlan(RoomType.FoodStorage);
         }
         if (GetRoom(RoomType.Graveyard) is null && Stats.Deaths >= 1)
         {
-            AddPlannedRoom(RoomType.Graveyard);
+            QueueRoomPlan(RoomType.Graveyard);
         }
+
+        ProcessRoomPlanQueue();
+    }
+
+    // ---- Phase 18.5: serialized room planning. Verification measured the
+    // Nursery's rect-fallback rate jumping 3.5% → 86% once Food-storage
+    // became a fourth competitor for the downward cone under Home: rooms
+    // whose triggers fire while another room's PLANNED site still occupies
+    // the cone must dodge it, and with three independent triggers racing,
+    // usually can't. Fix: triggers LATCH immediately (milestones unchanged)
+    // but planning is queued FIFO and released only when no other non-Home
+    // room is planned-but-unexcavated — excavation was already serialized
+    // (one ActiveDigSite), so waiting to PLAN costs almost nothing, and a
+    // room planned after its predecessor excavates sees a clear cone (and
+    // the Nursery usually gets its intended Phase 12 garden parent back).
+    // Bounded wait: after MaxRoomPlanDeferralTicks in the queue the room
+    // plans anyway (the pre-18.5 contention behavior as the fallback), so
+    // a satisfied trigger can never starve behind a stuck dig. ----
+
+    private readonly Queue<RoomType> _roomPlanQueue = new();
+    private readonly Dictionary<RoomType, int> _roomQueuedAtTick = new();
+
+    private void QueueRoomPlan(RoomType type)
+    {
+        if (_roomQueuedAtTick.ContainsKey(type)) return; // already queued
+        _roomPlanQueue.Enqueue(type);
+        _roomQueuedAtTick[type] = TickCount;
+    }
+
+    private void ProcessRoomPlanQueue()
+    {
+        if (_roomPlanQueue.Count == 0) return;
+        bool coneBusy = Rooms.Any(r => !r.Excavated && r.Type != RoomType.Home);
+        bool overdue = TickCount - _roomQueuedAtTick[_roomPlanQueue.Peek()] > Config.MaxRoomPlanDeferralTicks;
+        if (coneBusy && !overdue) return;
+        var type = _roomPlanQueue.Dequeue();
+        _roomQueuedAtTick.Remove(type);
+        AddPlannedRoom(type);
     }
 
     /// <summary>Phase 11: rooms are organic chambers at real distance,

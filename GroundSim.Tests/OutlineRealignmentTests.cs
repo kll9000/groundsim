@@ -89,6 +89,44 @@ public class FoodStorageFlowTests
 public class DeathAndBurialTests
 {
     [Fact]
+    public void RawConservation_ClosesItsBooks_IncludingRawLostToDeaths()
+    {
+        // Phase 18.5 item 2: the raw-material invariant must include the
+        // died-mid-carry term, so a silent break in that path gets caught.
+        // Regen off → node depletion has exactly one cause; short fixed
+        // lifespans → the whole crew dies inside the window, some mid-haul.
+        var (grid, sim) = ColonyTestWorld.Create();
+        var colony = ColonyTestWorld.Founded(grid, sim, new ColonyConfig
+        {
+            EggSurvivalChance = 0,
+            EggLayIntervalTicks = 1_000_000,
+            NodeRegenPerTick = 0,
+            WorkerLifespanMeanTicks = 1_500,
+            WorkerLifespanJitterTicks = 300,
+        });
+        var node = new ResourceNode(160, 59, 10_000);
+        colony.Nodes.Add(node);
+        for (int i = 0; i < 6; i++)
+        {
+            colony.Spawn(Caste.Forager, colony.HomeCenter.X + i - 3, colony.HomeCenter.Y);
+        }
+
+        ColonyTestWorld.Run(colony, sim, 4_000);
+
+        Assert.Empty(colony.Foragers); // the whole crew died in-window
+        double depleted = 10_000 - node.Remaining;
+        // Every unit the node lost is at home, already processed, or died
+        // in a forager's jaws — nothing silently vanished.
+        Assert.Equal(depleted,
+            colony.RawMaterial + colony.Stats.RawProcessedByGardeners + colony.Stats.RawLostToDeaths, 3);
+        // The term is genuinely exercised: at least one forager died
+        // mid-carry (deterministic seed; staggered spawn positions make
+        // some death ticks land mid-haul).
+        Assert.True(colony.Stats.RawLostToDeaths > 0,
+            "no forager died carrying — the RawLostToDeaths path was never exercised");
+    }
+
+    [Fact]
     public void Worker_DiesAtLifespan_LeavingACorpse_QueenExempt()
     {
         var (grid, sim) = ColonyTestWorld.Create();

@@ -115,6 +115,13 @@ public sealed class ColonyConfig
     /// threshold ported 1:1.</summary>
     public double NurseryBroodPressureThreshold { get; init; } = 4_200;
 
+    /// <summary>Phase 18.5: max ticks a triggered room may wait in the
+    /// planning queue for the previous room's excavation to finish before
+    /// being planned anyway (accepting cone contention — the pre-18.5
+    /// behavior as the bounded-wait fallback, so a satisfied trigger can
+    /// never starve). INVENTED: ~2× a typical room excavation.</summary>
+    public int MaxRoomPlanDeferralTicks { get; init; } = 60_000;
+
     /// <summary>Phase 18 Part B (new outline): cumulative raw material
     /// gathered by Foragers at which the Food-storage room triggers — the
     /// room appears once a real foraging economy exists, in the same
