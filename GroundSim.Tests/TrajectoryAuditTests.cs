@@ -134,7 +134,8 @@ public class ColonyTrajectoryAuditTests
 
     private static IEnumerable<(object id, (int X, int Y) pos)> Workers(Colony c)
     {
-        foreach (var t in c.Tenders) yield return (t, (t.X, t.Y));
+        foreach (var m in c.Minims) yield return (m, (m.X, m.Y));
+        foreach (var g in c.Gardeners) yield return (g, (g.X, g.Y));
         foreach (var f in c.Foragers) yield return (f, (f.X, f.Y));
         foreach (var m in c.Majors) yield return (m, (m.X, m.Y));
     }

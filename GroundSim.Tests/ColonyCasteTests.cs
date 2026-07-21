@@ -78,36 +78,72 @@ public class QueenTests
     }
 }
 
-public class TenderTests
+// Phase 18 Part A: Tender split into Gardener (processes) and Minim (tends
+// eggs). The old TenderTests split with it — each new caste keeps the test
+// for the behavior it inherited, plus adversarial role-purity tests in the
+// same tempt-and-verify style as every purity test since Phase 6.
+public class GardenerTests
 {
     [Fact]
-    public void Tender_ProcessesRawIntoFarmed()
+    public void Gardener_ProcessesRawIntoFarmed()
     {
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = ColonyTestWorld.Founded(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0 });
-        colony.Spawn(Caste.Tender, colony.HomeCenter.X, colony.HomeCenter.Y);
+        colony.Spawn(Caste.Gardener, colony.HomeCenter.X, colony.HomeCenter.Y);
         colony.RawMaterial = 5;
 
         ColonyTestWorld.Run(colony, sim, 500);
 
-        Assert.True(colony.Stats.RawProcessedByTenders >= 5,
-            $"Expected all 5 raw processed, got {colony.Stats.RawProcessedByTenders}");
+        Assert.True(colony.Stats.RawProcessedByGardeners >= 5,
+            $"Expected all 5 raw processed, got {colony.Stats.RawProcessedByGardeners}");
         Assert.Equal(0, colony.RawMaterial, 3);
         Assert.Equal(colony.Config.StarterResource + 5, colony.FarmedResource, 3);
     }
 
     [Fact]
-    public void Tender_TendingSpeedsEggMaturation()
+    public void Gardener_NeverTendsEggs_AndNeverGathers_AcrossManyTicks()
     {
-        // Two identical colonies, one with a Tender: the tended egg matures
-        // measurably sooner.
-        int MatureTicks(bool withTender)
+        var (grid, sim) = ColonyTestWorld.Create();
+        var colony = ColonyTestWorld.Founded(grid, sim,
+            new ColonyConfig { EggSurvivalChance = 0, EggLayIntervalTicks = 1_000_000 });
+        // Tempting targets: full nodes outside AND an egg right next to the
+        // gardener, with NO raw to process — an idle gardener with an easy
+        // egg to tend and easy nodes to raid must still do neither.
+        colony.Nodes.Add(new ResourceNode(80, 59, 100));
+        colony.Spawn(Caste.Gardener, colony.HomeCenter.X, colony.HomeCenter.Y);
+        colony.LayEgg();
+        int untendedMaturation = colony.Config.EggMaturationTicks;
+
+        int t = 0;
+        while (colony.Eggs.Count > 0 && t < 100_000)
+        {
+            Assert.False(colony.Eggs[0].TendedThisTick, "a Gardener tended an egg — role purity violated");
+            colony.Tick();
+            sim.Tick();
+            t++;
+        }
+        // The egg matured at the full UNTENDED rate (no speed boost leaked in).
+        Assert.True(t >= untendedMaturation,
+            $"egg matured in {t} ticks < untended {untendedMaturation} — something tended it");
+        Assert.Equal(100, colony.Nodes[0].Remaining, 3);
+        Assert.Equal(0, colony.Stats.RawGatheredByForagers, 3);
+    }
+}
+
+public class MinimTests
+{
+    [Fact]
+    public void Minim_TendingSpeedsEggMaturation()
+    {
+        // Two identical colonies, one with a Minim: the tended egg matures
+        // measurably sooner. (The mechanic inherited from Tender.)
+        int MatureTicks(bool withMinim)
         {
             var (grid, sim) = ColonyTestWorld.Create();
             var config = new ColonyConfig { EggSurvivalChance = 0, EggLayIntervalTicks = 1_000_000 };
             var colony = ColonyTestWorld.Founded(grid, sim, config);
-            if (withTender) colony.Spawn(Caste.Tender, colony.HomeCenter.X, colony.HomeCenter.Y);
+            if (withMinim) colony.Spawn(Caste.Minim, colony.HomeCenter.X, colony.HomeCenter.Y);
             colony.LayEgg();
             for (int t = 0; t < 100_000; t++)
             {
@@ -118,33 +154,37 @@ public class TenderTests
             return int.MaxValue;
         }
 
-        int untended = MatureTicks(withTender: false);
-        int tended = MatureTicks(withTender: true);
+        int untended = MatureTicks(withMinim: false);
+        int tended = MatureTicks(withMinim: true);
         Assert.True(tended < untended,
             $"Tended egg ({tended} ticks) should mature faster than untended ({untended})");
     }
 
     [Fact]
-    public void Tender_NeverGathers_AcrossManyTicks()
+    public void Minim_NeverProcesses_AndNeverGathers_AcrossManyTicks()
     {
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = ColonyTestWorld.Founded(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0 });
-        // Tempting targets: full resource nodes right outside home.
+        // Tempting targets: full nodes outside AND a pile of raw material at
+        // the processing site — minims with nothing to tend must not touch
+        // either (no eggs are ever laid here).
         colony.Nodes.Add(new ResourceNode(80, 59, 100));
         colony.Nodes.Add(new ResourceNode(140, 59, 100));
-        colony.Spawn(Caste.Tender, colony.HomeCenter.X, colony.HomeCenter.Y);
-        colony.Spawn(Caste.Tender, colony.HomeCenter.X + 1, colony.HomeCenter.Y);
-        colony.RawMaterial = 3; // some processing work, then idle/tending time
+        colony.Spawn(Caste.Minim, colony.HomeCenter.X, colony.HomeCenter.Y);
+        colony.Spawn(Caste.Minim, colony.HomeCenter.X + 1, colony.HomeCenter.Y);
+        colony.RawMaterial = 50;
+        double farmedBefore = colony.FarmedResource;
 
         ColonyTestWorld.Run(colony, sim, 4000);
 
-        // Behavioral purity: nothing was gathered by anyone.
+        // Behavioral purity: nothing gathered, nothing processed.
         Assert.Equal(100, colony.Nodes[0].Remaining, 3);
         Assert.Equal(100, colony.Nodes[1].Remaining, 3);
         Assert.Equal(0, colony.Stats.RawGatheredByForagers, 3);
-        // Raw only went DOWN (processing); it can never rise without foragers.
-        Assert.True(colony.RawMaterial <= 3);
+        Assert.Equal(50, colony.RawMaterial, 3);
+        Assert.Equal(farmedBefore, colony.FarmedResource, 3);
+        Assert.Equal(0, colony.Stats.RawProcessedByGardeners, 3);
     }
 }
 
@@ -201,7 +241,7 @@ public class ForagerTests
         // shortcut around the two-stage raw->farmed pipeline.
         Assert.Equal(farmedBefore, colony.FarmedResource, 3);
         Assert.Equal(50, colony.RawMaterial, 3);
-        Assert.Equal(0, colony.Stats.RawProcessedByTenders, 3);
+        Assert.Equal(0, colony.Stats.RawProcessedByGardeners, 3);
     }
 }
 
@@ -281,9 +321,16 @@ public class OffspringTests
     {
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = ColonyTestWorld.Founded(grid, sim);
+        // Phase 18: satisfy the Gardener population gate up front so the
+        // full four-way distribution is exercised; the gate itself has its
+        // own dedicated test below.
+        for (int i = 0; i < colony.Config.GardenerUnlockPopulation; i++)
+        {
+            colony.Spawn(Caste.Minim, colony.HomeCenter.X, colony.HomeCenter.Y);
+        }
 
         const int trials = 20_000;
-        int survived = 0, majors = 0, foragers = 0, tenders = 0;
+        int survived = 0, majors = 0, foragers = 0, minims = 0, gardeners = 0;
         for (int i = 0; i < trials; i++)
         {
             var o = colony.RollOffspring();
@@ -293,7 +340,8 @@ public class OffspringTests
             {
                 case Caste.Major: majors++; break;
                 case Caste.Forager: foragers++; break;
-                case Caste.Tender: tenders++; break;
+                case Caste.Minim: minims++; break;
+                case Caste.Gardener: gardeners++; break;
             }
         }
 
@@ -305,11 +353,45 @@ public class OffspringTests
         double pSurvive = colony.Config.EggSurvivalChance;
         double pMajor = colony.Config.MajorChance;
         double pForager = (1 - pMajor) * colony.Config.ForagerShareOfRemainder;
-        double pTender = (1 - pMajor) * (1 - colony.Config.ForagerShareOfRemainder);
+        double pCaregiver = (1 - pMajor) * (1 - colony.Config.ForagerShareOfRemainder);
+        double pGardener = pCaregiver * colony.Config.GardenerShareOfCaregivers;
+        double pMinim = pCaregiver * (1 - colony.Config.GardenerShareOfCaregivers);
         Assert.InRange(survived / (double)trials, pSurvive - 0.03, pSurvive + 0.03);
         Assert.InRange(majors / (double)survived, pMajor - 0.03, pMajor + 0.03);
         Assert.InRange(foragers / (double)survived, pForager - 0.03, pForager + 0.03);
-        Assert.InRange(tenders / (double)survived, pTender - 0.03, pTender + 0.03);
+        Assert.InRange(gardeners / (double)survived, pGardener - 0.03, pGardener + 0.03);
+        Assert.InRange(minims / (double)survived, pMinim - 0.03, pMinim + 0.03);
+    }
+
+    [Fact]
+    public void GardenerRolls_ArePopulationGated_FallingThroughToMinim()
+    {
+        // Phase 18: below GardenerUnlockPopulation, the caregiver roll can
+        // ONLY produce Minims (the gardener share falls through); at the
+        // gate, Gardeners appear. First instance of Colony Builder's
+        // population-gate mechanism (Phase 14 Part C gap #1).
+        var (grid, sim) = ColonyTestWorld.Create();
+        var colony = ColonyTestWorld.Founded(grid, sim);
+        Assert.True(colony.WorkerCount < colony.Config.GardenerUnlockPopulation);
+
+        for (int i = 0; i < 5000; i++)
+        {
+            var o = colony.RollOffspring();
+            Assert.False(o.Survived && o.Caste == Caste.Gardener,
+                "a Gardener rolled below the population gate");
+        }
+
+        for (int i = 0; i < colony.Config.GardenerUnlockPopulation; i++)
+        {
+            colony.Spawn(Caste.Minim, colony.HomeCenter.X, colony.HomeCenter.Y);
+        }
+        bool anyGardener = false;
+        for (int i = 0; i < 5000 && !anyGardener; i++)
+        {
+            var o = colony.RollOffspring();
+            anyGardener = o.Survived && o.Caste == Caste.Gardener;
+        }
+        Assert.True(anyGardener, "no Gardener ever rolled once the gate was satisfied");
     }
 
     [Fact]
@@ -327,7 +409,7 @@ public class OffspringTests
 
         ColonyTestWorld.Run(colony, sim, 500);
 
-        int workers = colony.Tenders.Count + colony.Foragers.Count + colony.Majors.Count;
+        int workers = colony.WorkerCount;
         Assert.True(workers >= 40, $"Expected ~49 workers from 500 ticks, got {workers}");
         Assert.DoesNotContain(colony.Eggs, e => e.IsMature);
     }

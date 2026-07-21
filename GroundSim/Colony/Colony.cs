@@ -1,6 +1,9 @@
 namespace GroundSim;
 
-public enum Caste { Tender, Forager, Major }
+// Phase 18 Part A (new outline): Tender split into Minim (tends eggs) and
+// Gardener (processes fungus) — separate rolls from egg maturation, no
+// caste-maturation mechanic, per Kevin's decision.
+public enum Caste { Minim, Gardener, Forager, Major }
 
 public sealed class ColonyStats
 {
@@ -8,11 +11,12 @@ public sealed class ColonyStats
     /// source of raw material. Role purity: node depletion must equal this.</summary>
     public double RawGatheredByForagers { get; set; }
 
-    /// <summary>Raw converted to farmed by Tenders — the ONLY legal source of
-    /// farmed resource besides the queen's one-time starter deposit.</summary>
-    public double RawProcessedByTenders { get; set; }
+    /// <summary>Raw converted to farmed by Gardeners (Phase 18: was Tenders)
+    /// — the ONLY legal source of farmed resource besides the queen's
+    /// one-time starter deposit.</summary>
+    public double RawProcessedByGardeners { get; set; }
 
-    /// <summary>Of the processed total, how much completed while the Tender
+    /// <summary>Of the processed total, how much completed while the Gardener
     /// was physically standing inside an excavated Fungus Garden.</summary>
     public double ProcessedInGarden { get; set; }
 
@@ -55,9 +59,14 @@ public sealed class Colony
 
     public Queen Queen { get; private set; }
     public List<Egg> Eggs { get; } = new();
-    public List<Tender> Tenders { get; } = new();
+    public List<Minim> Minims { get; } = new();
+    public List<Gardener> Gardeners { get; } = new();
     public List<Forager> Foragers { get; } = new();
     public List<Major> Majors { get; } = new();
+
+    /// <summary>Total living workers across all castes (the population that
+    /// gates population-locked caste rolls, Phase 18).</summary>
+    public int WorkerCount => Minims.Count + Gardeners.Count + Foragers.Count + Majors.Count;
     public List<ResourceNode> Nodes { get; } = new();
     public ColonyStats Stats { get; } = new();
     public ColonyMilestones Milestones { get; } = new();
@@ -128,7 +137,7 @@ public sealed class Colony
 
     public HashSet<(int X, int Y)> DigClaims { get; } = new();
 
-    /// <summary>Where Tenders process. Home Room center until the Fungus
+    /// <summary>Where Gardeners process (Phase 18: was Tenders). Home Room center until the Fungus
     /// Garden excavates; OnRoomExcavated repoints it at the Garden.</summary>
     public Func<Colony, (int X, int Y)> ProcessingSiteProvider { get; set; } = c => c.HomeCenter;
     public (int X, int Y) ProcessingSite => ProcessingSiteProvider(this);
@@ -238,7 +247,8 @@ public sealed class Colony
         AssignDiggers();
 
         Queen.Tick(this);
-        foreach (var t in Tenders) t.Tick(this, Grid);
+        foreach (var m in Minims) m.Tick(this, Grid);
+        foreach (var g in Gardeners) g.Tick(this, Grid);
         foreach (var f in Foragers) f.Tick(this, Grid);
         foreach (var m in Majors) m.Tick(this, Grid);
 
@@ -352,7 +362,7 @@ public sealed class Colony
         {
             case RoomType.Garden:
                 // The Phase 6 seam doing its job: relocate processing with
-                // zero Tender code changes. Live floor site (Phase 12): the
+                // zero Gardener code changes. Live floor site (Phase 12): the
                 // fixed floor-center can be buried by mound spill settling
                 // inside the chamber, which froze processing permanently.
                 // Resilience: if the garden currently has NO usable air cell,
@@ -449,9 +459,13 @@ public sealed class Colony
 
     /// <summary>
     /// Survival + caste rolls for one matured egg. Rarity-ordered, rarest
-    /// first: Major roll, then Forager-vs-Tender with Tender as the
-    /// most-common default. (Soldier and New Queen rolls are deferred and
-    /// deliberately absent.)
+    /// first: Major roll, then Forager, then the caregiver split
+    /// Gardener-vs-Minim with Minim as the most-common default. Phase 18:
+    /// the Gardener roll is population-gated (the outline ties Gardener
+    /// appearance to the operation scaling up; below the gate the roll
+    /// falls through to Minim, so the earliest colony is Minim-heavy,
+    /// matching the outline's "first and smallest workers"). (Soldier and
+    /// New Queen rolls are deferred and deliberately absent.)
     /// </summary>
     public OffspringOutcome RollOffspring()
     {
@@ -463,8 +477,13 @@ public sealed class Colony
         {
             return new OffspringOutcome(true, Caste.Major);
         }
-        return new OffspringOutcome(true,
-            _rng.NextDouble() < Config.ForagerShareOfRemainder ? Caste.Forager : Caste.Tender);
+        if (_rng.NextDouble() < Config.ForagerShareOfRemainder)
+        {
+            return new OffspringOutcome(true, Caste.Forager);
+        }
+        bool gardener = WorkerCount >= Config.GardenerUnlockPopulation
+            && _rng.NextDouble() < Config.GardenerShareOfCaregivers;
+        return new OffspringOutcome(true, gardener ? Caste.Gardener : Caste.Minim);
     }
 
     public void Spawn(Caste caste, int x, int y)
@@ -472,7 +491,8 @@ public sealed class Colony
         if (!Grid.IsAir(x, y)) (x, y) = HomeCenter;
         switch (caste)
         {
-            case Caste.Tender: Tenders.Add(new Tender(x, y)); break;
+            case Caste.Minim: Minims.Add(new Minim(x, y)); break;
+            case Caste.Gardener: Gardeners.Add(new Gardener(x, y)); break;
             case Caste.Forager: Foragers.Add(new Forager(x, y)); break;
             case Caste.Major: Majors.Add(new Major(x, y)); break;
         }

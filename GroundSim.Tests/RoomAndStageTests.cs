@@ -110,7 +110,7 @@ public class ColonyStageTests
         }
         Assert.Equal(ColonyStage.FirstBrood, colony.CurrentStage);
 
-        colony.Spawn(Caste.Tender, colony.HomeCenter.X, colony.HomeCenter.Y);
+        colony.Spawn(Caste.Minim, colony.HomeCenter.X, colony.HomeCenter.Y);
         Assert.Equal(ColonyStage.Establishment, colony.CurrentStage);
 
         colony.FarmedResource = colony.Config.GardenTriggerThreshold;
@@ -122,33 +122,33 @@ public class ColonyStageTests
 public class BehaviorRelocationTests
 {
     [Fact]
-    public void Tenders_ActuallyProcessInsideTheGarden_OnceItExists()
+    public void Gardeners_ActuallyProcessInsideTheGarden_OnceItExists()
     {
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = ColonyTestWorld.Founded(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0, EggLayIntervalTicks = 1_000_000 });
         var h = ColonyTestWorld.Chamber;
         var garden = colony.AddExcavatedRoom(RoomType.Garden, (h.X0 + 1, h.Y1 + 1, h.X0 + 6, h.Y1 + 3));
-        colony.Spawn(Caste.Tender, colony.HomeCenter.X, colony.HomeCenter.Y);
+        colony.Spawn(Caste.Gardener, colony.HomeCenter.X, colony.HomeCenter.Y);
         colony.RawMaterial = 5;
 
-        bool observedTenderProcessingInGarden = false;
+        bool observedGardenerProcessingInGarden = false;
         for (int t = 0; t < 2000; t++)
         {
             colony.Tick();
             sim.Tick();
-            var tender = colony.Tenders[0];
-            if (garden.Contains(tender.X, tender.Y) && colony.Stats.ProcessedInGarden > 0)
+            var gardener = colony.Gardeners[0];
+            if (garden.Contains(gardener.X, gardener.Y) && colony.Stats.ProcessedInGarden > 0)
             {
-                observedTenderProcessingInGarden = true;
+                observedGardenerProcessingInGarden = true;
             }
         }
 
-        // Not just "the site value changed" — the tender physically walked
+        // Not just "the site value changed" — the gardener physically walked
         // into the garden and processing completed there.
-        Assert.True(observedTenderProcessingInGarden,
-            "Never observed a Tender processing while inside the Garden");
-        Assert.Equal(colony.Stats.RawProcessedByTenders, colony.Stats.ProcessedInGarden, 3);
+        Assert.True(observedGardenerProcessingInGarden,
+            "Never observed a Gardener processing while inside the Garden");
+        Assert.Equal(colony.Stats.RawProcessedByGardeners, colony.Stats.ProcessedInGarden, 3);
         // Phase 9 update: the site is the garden's FLOOR center (terrain-
         // following made mid-air targets unreachable).
         Assert.Equal((garden.Center.X, garden.Y1), colony.ProcessingSite);
@@ -230,7 +230,7 @@ public class EndToEndStageTests
                 $"seed {seed}: no worker matured within {maxTicks} ticks");
             // Stage 3 — Establishment: the gather loop genuinely ran.
             Assert.True(colony.Stats.RawGatheredByForagers > 0, $"seed {seed}: nothing gathered");
-            Assert.True(colony.Stats.RawProcessedByTenders > 0, $"seed {seed}: nothing processed");
+            Assert.True(colony.Stats.RawProcessedByGardeners > 0, $"seed {seed}: nothing processed");
             // Stage 4 — Expansion: both rooms triggered, excavated for real,
             // and behavior relocated into them.
             Assert.True(m.GardenExcavatedTick is not null,

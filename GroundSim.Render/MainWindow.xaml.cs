@@ -165,7 +165,8 @@ public partial class MainWindow : Window
     {
         _dirty.MarkParticles(_sim);
         _dirty.Mark(_colony.Queen.X, _colony.Queen.Y);
-        foreach (var t in _colony.Tenders) _dirty.Mark(t.X, t.Y);
+        foreach (var m in _colony.Minims) _dirty.Mark(m.X, m.Y);
+        foreach (var g in _colony.Gardeners) _dirty.Mark(g.X, g.Y);
         foreach (var f in _colony.Foragers) _dirty.Mark(f.X, f.Y);
         foreach (var m in _colony.Majors) _dirty.Mark(m.X, m.Y);
         foreach (var egg in _colony.Eggs) _dirty.Mark(egg.X, egg.Y);
@@ -180,7 +181,7 @@ public partial class MainWindow : Window
 
         StatusText.Text =
             $"PROTOTYPE (untuned constants)  stage: {_colony.CurrentStage}  " +
-            $"T:{_colony.Tenders.Count} F:{_colony.Foragers.Count} M:{_colony.Majors.Count} eggs:{_colony.Eggs.Count}  " +
+            $"Mi:{_colony.Minims.Count} G:{_colony.Gardeners.Count} F:{_colony.Foragers.Count} M:{_colony.Majors.Count} eggs:{_colony.Eggs.Count}  " +
             $"raw {_colony.RawMaterial:0.0}  farmed {_colony.FarmedResource:0.0}  " +
             $"garden:{RoomState(garden)} nursery:{RoomState(nursery)}  " +
             $"tps {_clock.TicksPerSecond:0}{(_clock.Paused ? " PAUSED" : "")}  " +
@@ -244,7 +245,8 @@ public partial class MainWindow : Window
         }
 
         Add("Queen", () => (_colony.Queen.X, _colony.Queen.Y));
-        foreach (var t in _colony.Tenders) Add("Tender", () => (t.X, t.Y));
+        foreach (var m in _colony.Minims) Add("Minim", () => (m.X, m.Y));
+        foreach (var g in _colony.Gardeners) Add("Gardener", () => (g.X, g.Y));
         foreach (var f in _colony.Foragers) Add("Forager", () => (f.X, f.Y));
         foreach (var m in _colony.Majors) Add("Major", () => (m.X, m.Y));
 

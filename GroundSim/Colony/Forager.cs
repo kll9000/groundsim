@@ -3,7 +3,7 @@ namespace GroundSim;
 /// <summary>
 /// Leaves the nest to gather, and ONLY gathers: paths to a surface resource
 /// node, takes a haul (smaller the farther the node is from home), hauls it
-/// back as RAW material. NEVER processes — a Tender does that; the two-stage
+/// back as RAW material. NEVER processes — a Gardener does that (Phase 18); the two-stage
 /// raw→farmed pipeline is a deliberate Colony Builder design decision.
 /// Composes PathWalker — Foragers don't dig.
 /// </summary>

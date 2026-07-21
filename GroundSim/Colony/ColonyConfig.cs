@@ -44,7 +44,7 @@ public sealed class ColonyConfig
     /// game.js gestation: 5.5 s × 30 tps = 165.</summary>
     public int EggMaturationTicks { get; init; } = 165;
 
-    /// <summary>Maturation speed multiplier while a Tender tends the egg.
+    /// <summary>Maturation speed multiplier while a Minim tends the egg (Phase 18: was Tender).
     /// game.js tendSpeedup: 2.0 (dimensionless).</summary>
     public int TendedMaturationSpeed { get; init; } = 2;
 
@@ -52,8 +52,9 @@ public sealed class ColonyConfig
     /// game.js survivalFraction: 0.3 (probability, no conversion).</summary>
     public double EggSurvivalChance { get; init; } = 0.3;
 
-    /// <summary>Rarest-first caste rolls: Major first, then Forager vs Tender
-    /// (Tender is the most-common default). game.js majorFraction: 0.2 /
+    /// <summary>Rarest-first caste rolls: Major first, then Forager, then the
+    /// Gardener-vs-Minim caregiver split (Phase 18; Minim is the most-common
+    /// default). game.js majorFraction: 0.2 /
     /// foragerFraction: 0.6 (probabilities, no conversion). NOTE: Colony
     /// Builder gates these rolls behind population thresholds
     /// (majorUnlockPopulation: 7, foragerUnlockPopulation: 4); GroundSim
@@ -61,6 +62,25 @@ public sealed class ColonyConfig
     /// the Phase 14 report, fractions only ported here.</summary>
     public double MajorChance { get; init; } = 0.2;
     public double ForagerShareOfRemainder { get; init; } = 0.6;
+
+    /// <summary>Phase 18 (new outline): of the caregiver remainder (the old
+    /// Tender share, 0.32 of survivors), the fraction rolled as Gardener
+    /// once unlocked — the rest are Minims. INVENTED 50/50 split: the new
+    /// outline has no numbers and Colony Builder's game.js never had this
+    /// caste distinction at all; flagged pending any better source.</summary>
+    public double GardenerShareOfCaregivers { get; init; } = 0.5;
+
+    /// <summary>Phase 18: workers that must exist before a Gardener can be
+    /// rolled at all (below it the roll falls through to Minim). The
+    /// outline ties Gardener appearance to the garden operation scaling up;
+    /// a population gate is used rather than a Garden-room-excavated gate
+    /// because the Garden's own trigger REQUIRES farmed resource, which
+    /// requires processing, which only Gardeners do — an excavation-gated
+    /// Gardener could never exist (deadlock by construction). Population
+    /// gating is also exactly how Colony Builder's real values gate
+    /// Forager/Major (Phase 14 Part C gap #1, first instance now built).
+    /// INVENTED value: 4, mirroring game.js foragerUnlockPopulation: 4.</summary>
+    public int GardenerUnlockPopulation { get; init; } = 4;
 
     /// <summary>Forager haul size: base minus distance falloff, floored.
     /// game.js gatherChunkBase: 15 / gatherChunkMin: 5 (mass, no
@@ -74,7 +94,7 @@ public sealed class ColonyConfig
     public double GatherDistanceFalloff { get; init; } = 0.08;
     public double GatherChunkMin { get; init; } = 5.0;
 
-    /// <summary>Ticks a Tender spends converting 1 raw material into 1
+    /// <summary>Ticks a Gardener spends converting 1 raw material into 1
     /// farmed resource. game.js processRate: 3.2 mass/s → 30 tps / 3.2 =
     /// 9.375, rounded to 9 (int; ~4% faster than the true rate — the
     /// nearest-integer error is smaller than one tick's worth).</summary>

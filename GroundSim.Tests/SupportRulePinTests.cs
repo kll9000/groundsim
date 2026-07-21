@@ -79,7 +79,8 @@ public class SupportRuleImplementationPinTests
             {
                 colony.Tick();
                 sim.Tick();
-                foreach (var (x, y) in colony.Tenders.Select(w => (w.X, w.Y))
+                foreach (var (x, y) in colony.Minims.Select(w => (w.X, w.Y))
+                             .Concat(colony.Gardeners.Select(w => (w.X, w.Y)))
                     .Concat(colony.Foragers.Select(w => (w.X, w.Y)))
                     .Concat(colony.Majors.Select(w => (w.X, w.Y))))
                 {

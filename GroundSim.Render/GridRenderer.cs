@@ -13,7 +13,7 @@ namespace GroundSim.Render;
 ///
 /// Phase 8 visual language (flat colors, no art assets):
 ///   yellow = falling particle      pink   = Queen
-///   green  = Tender                blue   = Forager
+///   green  = Gardener (mint = Minim)   blue   = Forager
 ///   red    = Major                 pale dot = egg
 ///   excavated rooms get a subtle per-type background tint.
 /// </summary>
@@ -32,7 +32,11 @@ public sealed class GridRenderer
 
     private static readonly Color AwakeColor = Color.FromRgb(255, 230, 40);
     private static readonly Color QueenColor = Color.FromRgb(255, 80, 200);
-    private static readonly Color TenderColor = Color.FromRgb(90, 200, 120);
+    // Phase 18: Tender split — Gardener keeps the old Tender green (it
+    // inherits the processing role Kevin has watched since Phase 8); Minim
+    // gets a paler mint so caregivers read as their own, smaller caste.
+    private static readonly Color MinimColor = Color.FromRgb(170, 235, 190);
+    private static readonly Color GardenerColor = Color.FromRgb(90, 200, 120);
     private static readonly Color ForagerColor = Color.FromRgb(80, 170, 255);
     private static readonly Color MajorColor = Color.FromRgb(230, 65, 65);
     private static readonly Color EggColor = Color.FromRgb(240, 240, 215);
@@ -60,7 +64,8 @@ public sealed class GridRenderer
         ("Fungus", MaterialColor(CellMaterial.Fungus)),
         ("Falling particle", AwakeColor),
         ("Queen", QueenColor),
-        ("Tender", TenderColor),
+        ("Minim", MinimColor),
+        ("Gardener", GardenerColor),
         ("Forager", ForagerColor),
         ("Major", MajorColor),
         ("Egg", EggColor),
@@ -116,7 +121,8 @@ public sealed class GridRenderer
         {
             DrawDot(egg.X, egg.Y, EggColor);
         }
-        foreach (var t in colony.Tenders) DrawCell(t.X, t.Y, TenderColor);
+        foreach (var m in colony.Minims) DrawCell(m.X, m.Y, MinimColor);
+        foreach (var g in colony.Gardeners) DrawCell(g.X, g.Y, GardenerColor);
         foreach (var f in colony.Foragers) DrawCell(f.X, f.Y, ForagerColor);
         foreach (var m in colony.Majors) DrawCell(m.X, m.Y, MajorColor);
         DrawCell(colony.Queen.X, colony.Queen.Y, QueenColor);

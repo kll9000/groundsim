@@ -21,7 +21,7 @@ public class LegendTests
         foreach (var required in new[]
         {
             "Dirt", "Rock", "Loose rock", "Stick",
-            "Queen", "Tender", "Forager", "Major",
+            "Queen", "Minim", "Gardener", "Forager", "Major",
             "Falling particle",
             "Home room", "Garden room", "Nursery room",
         })

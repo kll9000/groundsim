@@ -34,7 +34,8 @@ public partial class App : Application
         {
             dirty.MarkParticles(sim);
             dirty.Mark(colony.Queen.X, colony.Queen.Y);
-            foreach (var t in colony.Tenders) dirty.Mark(t.X, t.Y);
+            foreach (var m in colony.Minims) dirty.Mark(m.X, m.Y);
+            foreach (var g in colony.Gardeners) dirty.Mark(g.X, g.Y);
             foreach (var f in colony.Foragers) dirty.Mark(f.X, f.Y);
             foreach (var m in colony.Majors) dirty.Mark(m.X, m.Y);
             foreach (var egg in colony.Eggs) dirty.Mark(egg.X, egg.Y);
@@ -64,7 +65,7 @@ public partial class App : Application
         Console.WriteLine(
             $"colony smoke ok: {ticks} ticks in {sw.ElapsedMilliseconds} ms " +
             $"({sw.Elapsed.TotalMilliseconds / ticks:0.000} ms/tick), stage {colony.CurrentStage}, " +
-            $"workers T:{colony.Tenders.Count} F:{colony.Foragers.Count} M:{colony.Majors.Count}, " +
+            $"workers Mi:{colony.Minims.Count} G:{colony.Gardeners.Count} F:{colony.Foragers.Count} M:{colony.Majors.Count}, " +
             $"milestones: home={m.HomeFoundedTick} worker={m.FirstWorkerTick} " +
             $"gardenDone={m.GardenExcavatedTick} nurseryDone={m.NurseryExcavatedTick}, " +
             $"max dirty cells/frame {maxDirty} ({100.0 * maxDirty / totalCells:0.00}% of grid)");

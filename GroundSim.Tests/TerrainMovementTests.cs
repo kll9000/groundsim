@@ -146,11 +146,12 @@ public class SurfaceMovementTests
         // Sweep window: every worker must be non-floating (by the oracle) at
         // some point in the next 150 ticks — an agent can legitimately be
         // mid-fall at any single instant; PERSISTENT floating is the bug.
-        var everGrounded = new bool[colony.Tenders.Count + colony.Foragers.Count + colony.Majors.Count];
+        var everGrounded = new bool[colony.WorkerCount];
         for (int t = 0; t < 150; t++)
         {
             int i = 0;
-            foreach (var w in colony.Tenders.Select(x => (x.X, x.Y))
+            foreach (var w in colony.Minims.Select(x => (x.X, x.Y))
+                         .Concat(colony.Gardeners.Select(x => (x.X, x.Y)))
                 .Concat(colony.Foragers.Select(x => (x.X, x.Y)))
                 .Concat(colony.Majors.Select(x => (x.X, x.Y))))
             {
