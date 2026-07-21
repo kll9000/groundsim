@@ -209,8 +209,13 @@ public sealed class ColonyConfig
     /// so the cap alone decides the mound's aspect; measured at the finer
     /// grid, dirt piles hold ~2.6× steeper slopes than at the old grid
     /// (grain run-length is fixed in cells = half the physical distance),
-    /// and 4-seed 100k-tick app-world runs at 20 show peaked two-winged
-    /// mounds with the entrance chimney essentially never plugged (0-2 of
+    /// and 4-seed 100k-tick app-world runs at 20 show a taller, narrower
+    /// flat-topped mound with tapered flanks (Phase 16.5 correction: the
+    /// top is still flat at the cap — ~84% of mound columns sit AT it —
+    /// because this skip-at-cap rule truncates every peak at ANY cap
+    /// value; a genuinely peaked silhouette needs a profiled/tapered
+    /// height limit, a future-phase mechanism, not a cap retune), with
+    /// the entrance chimney essentially never plugged (0-2 of
     /// 200 samples, transient). COUPLING: must stay comfortably BELOW the
     /// entrance chimney's maintained height (12 × GridScale = 24) or the
     /// mound tops out above what maintenance keeps open and can seal the
