@@ -329,11 +329,15 @@ public sealed class Agent
     /// maintenance-activation gate. But there is a second path that bypasses
     /// that gate entirely: Remains sitting inside a site that is ACTIVELY
     /// being dug — e.g. an emergency lay-down (Soldier.BuryRemains with
-    /// emergency: true) landing inside a planned room's footprint, which
-    /// OrganicPlanner will accept because it tolerates a fraction of
-    /// already-air chamber cells. On that path an agent digs under its own
-    /// dig-site authority, never consulting maintenance, and THIS CLAUSE IS
-    /// THE ONLY GUARD.
+    /// emergency: true) landing inside a planned room's footprint. Nothing
+    /// upstream screens for this: OrganicPlanner's only relevant gate is an
+    /// already-air budget (alreadyAir > chamber.Count / 10 -> reject), and
+    /// Grid.IsAir is strictly "== CellMaterial.Air", so a Remains cell is
+    /// NOT counted as already-air — it reads as ordinary solid and passes
+    /// the gate freely, without even consuming the budget. Only the tunnel
+    /// air AROUND the lay-down spends that allowance. On that path an agent
+    /// then digs under its own dig-site authority, never consulting
+    /// maintenance, and THIS CLAUSE IS THE ONLY GUARD.
     ///
     /// Reachability, stated honestly: that path is STRUCTURALLY REACHABLE but
     /// NOT OBSERVED IN PRACTICE — zero occurrences across 800k ticks, two
