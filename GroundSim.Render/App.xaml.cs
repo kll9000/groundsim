@@ -30,15 +30,30 @@ public partial class App : Application
         renderer.DrawFull(colony);
         dirty.Clear();
 
+        var lastEntityPos = new Dictionary<object, (int, int)>();
         void MarkEntities()
         {
             dirty.MarkParticles(sim);
             dirty.Mark(colony.Queen.X, colony.Queen.Y);
             foreach (var c in colony.Corpses) dirty.Mark(c.X, c.Y);
-            foreach (var m in colony.Minims) dirty.Mark(m.X, m.Y);
-            foreach (var g in colony.Gardeners) dirty.Mark(g.X, g.Y);
-            foreach (var f in colony.Foragers) dirty.Mark(f.X, f.Y);
-            foreach (var m in colony.Majors) dirty.Mark(m.X, m.Y);
+            void MarkArea(int x, int y, int units)
+            {
+                int r = units / 2 + 1;
+                for (int dy = -r; dy <= r; dy++)
+                    for (int dx = -r; dx <= r; dx++) dirty.Mark(x + dx, y + dy);
+            }
+            void MarkIfMoved(object who, int x, int y, int units)
+            {
+                if (lastEntityPos.TryGetValue(who, out var last) && last == (x, y)) return;
+                if (lastEntityPos.TryGetValue(who, out var prev)) MarkArea(prev.Item1, prev.Item2, units);
+                MarkArea(x, y, units);
+                lastEntityPos[who] = (x, y);
+            }
+            foreach (var m in colony.Minims) MarkIfMoved(m, m.X, m.Y, GridRenderer.SizeUnits(Caste.Minim));
+            foreach (var g in colony.Gardeners) MarkIfMoved(g, g.X, g.Y, GridRenderer.SizeUnits(Caste.Gardener));
+            foreach (var f in colony.Foragers) MarkIfMoved(f, f.X, f.Y, GridRenderer.SizeUnits(Caste.Forager));
+            foreach (var s in colony.Soldiers) MarkIfMoved(s, s.X, s.Y, GridRenderer.SizeUnits(Caste.Soldier));
+            MarkIfMoved(colony.Queen, colony.Queen.X, colony.Queen.Y, GridRenderer.QueenSizeUnits);
             foreach (var egg in colony.Eggs) dirty.Mark(egg.X, egg.Y);
         }
 
@@ -66,7 +81,7 @@ public partial class App : Application
         Console.WriteLine(
             $"colony smoke ok: {ticks} ticks in {sw.ElapsedMilliseconds} ms " +
             $"({sw.Elapsed.TotalMilliseconds / ticks:0.000} ms/tick), stage {colony.CurrentStage}, " +
-            $"workers Mi:{colony.Minims.Count} G:{colony.Gardeners.Count} F:{colony.Foragers.Count} M:{colony.Majors.Count}, " +
+            $"workers Mi:{colony.Minims.Count} G:{colony.Gardeners.Count} F:{colony.Foragers.Count} S:{colony.Soldiers.Count}, " +
             $"deaths {colony.Stats.Deaths} burials {colony.Stats.Burials} (emerg {colony.Stats.EmergencyBurials}), " +
             $"milestones: home={m.HomeFoundedTick} worker={m.FirstWorkerTick} " +
             $"gardenDone={m.GardenExcavatedTick} nurseryDone={m.NurseryExcavatedTick}, " +

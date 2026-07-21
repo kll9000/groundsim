@@ -1,25 +1,26 @@
 namespace GroundSim;
 
 /// <summary>
-/// The largest worker. Narrowed post-Soldier-split definition: speeds
-/// excavation of whatever site is currently being dug, by digging alongside
-/// (via DigAssist, which composes the full Agent dig-carry-drop machinery so
-/// its spoil is physically hauled and conserved like everyone else's).
+/// Phase 19 (new outline): the largest caste, replacing Major outright.
+/// Inherits Major's two duties unchanged — excavation speed-boost (via
+/// DigAssist, the same full Agent dig-carry-drop composition, so its spoil
+/// is physically hauled and conserved like everyone else's) and corpse
+/// hauling to the Graveyard (Phase 18 Part C, verified logic untouched) —
+/// and adds guard POSITIONING as its resting posture: a Soldier with
+/// nothing to dig and nothing to bury stands at the colony's guard post
+/// (the entrance mouth). No combat, no threat detection, no enemies —
+/// positioning only, per the standing Phase 5 scoping note.
 ///
-/// Phase 18 Part C: with no active dig work, a Major hauls the colony's dead
-/// to the Graveyard (communal duty, dig work still takes priority — the
-/// outline's "workers" move the dead, and Majors are the ones with idle
-/// capacity by design). With no dig work AND no burial work it is simply
-/// idle — guard behavior is deliberately absent (the deferred Soldier's job).
-///
-/// Burial safety net (the Phase 9 emergency-dump pattern): every leg of a
-/// burial has an attempt budget. An unreachable corpse is released and
-/// retried later (never chased forever); an unreachable graveyard means the
-/// carried corpse is laid down WHERE THE HAULER STANDS (an emergency burial,
-/// tracked separately) — a blocked route can never deadlock the hauler or
-/// lose the corpse.
+/// Priority: dig > burial > guard. Reasoning: dig work is the colony's
+/// time-critical expansion path and was always Major's first duty; burial
+/// is finite, queued work with its own safety nets (Phase 18's
+/// verification specifically confirmed dig-preempts-burial-acquisition
+/// plus always-deliver-a-carried-corpse, and that logic transfers
+/// unchanged); guarding is by definition the posture for a Soldier with
+/// nothing else to do — it must never compete with real work, so it is
+/// strictly the idle default, not a third competing priority.
 /// </summary>
-public sealed class Major
+public sealed class Soldier
 {
     public int X { get; private set; }
     public int Y { get; private set; }
@@ -32,8 +33,12 @@ public sealed class Major
     /// <summary>True while hauling a corpse to the Graveyard.</summary>
     public bool CarryingCorpse { get; private set; }
 
+    /// <summary>True while standing at (or walking to) the guard post.</summary>
+    public bool OnGuard { get; private set; }
+
     private readonly DigAssist _dig = new();
     private PathWalker? _burialWalker;
+    private PathWalker? _guardWalker;
     private Colony.Corpse? _corpseTarget;
     private int _burialLegTicks;
 
@@ -45,7 +50,7 @@ public sealed class Major
     /// <summary>Cooldown before an abandoned corpse is retried.</summary>
     public const int CorpseRetryCooldownTicks = 5_000;
 
-    public Major(int x, int y)
+    public Soldier(int x, int y)
     {
         X = x;
         Y = y;
@@ -54,21 +59,35 @@ public sealed class Major
     public void Tick(Colony colony, Grid grid)
     {
         int x = X, y = Y;
-        // Dig work preempts burial-target ACQUISITION, but a carried corpse
-        // is always delivered first (same finish-what-you-carry discipline
-        // as DigAssist's spoil rule) — otherwise a corpse could be held
-        // indefinitely while a long dig runs.
+        // Dig work preempts burial-target ACQUISITION and guarding, but a
+        // carried corpse is always delivered first (same finish-what-you-
+        // carry discipline as DigAssist's spoil rule).
         if (!CarryingCorpse && _dig.Tick(colony, grid, ref x, ref y, wantDig: true))
         {
             (X, Y) = (x, y);
             AbandonBurialTarget(); // dig took over: release any claimed corpse
+            OnGuard = false;
+            _guardWalker = null;
             return;
         }
 
-        if (TickBurial(colony, grid)) return;
+        if (TickBurial(colony, grid))
+        {
+            OnGuard = false;
+            _guardWalker = null;
+            return;
+        }
 
-        // No dig site, no burial work, no leftover spoil: idle — no guard
-        // stance, no other caste's work.
+        // Nothing to dig, nothing to bury: take up the guard post.
+        TickGuard(colony, grid);
+    }
+
+    private void TickGuard(Colony colony, Grid grid)
+    {
+        var post = colony.GuardPost;
+        _guardWalker ??= new PathWalker(X, Y);
+        OnGuard = _guardWalker.MoveTowards(grid, post) || (X, Y) == post;
+        (X, Y) = (_guardWalker.X, _guardWalker.Y);
     }
 
     private bool TickBurial(Colony colony, Grid grid)

@@ -82,7 +82,7 @@ public class SupportRuleImplementationPinTests
                 foreach (var (x, y) in colony.Minims.Select(w => (w.X, w.Y))
                              .Concat(colony.Gardeners.Select(w => (w.X, w.Y)))
                     .Concat(colony.Foragers.Select(w => (w.X, w.Y)))
-                    .Concat(colony.Majors.Select(w => (w.X, w.Y))))
+                    .Concat(colony.Soldiers.Select(w => (w.X, w.Y))))
                 {
                     if (!grid.IsAir(x, y)) continue; // transiently buried
                     Assert.True(Terrain.IsSupported(grid, x, y) != Terrain.IsVisiblyFloating(grid, x, y),

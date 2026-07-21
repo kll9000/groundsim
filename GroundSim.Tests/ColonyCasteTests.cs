@@ -245,18 +245,22 @@ public class ForagerTests
     }
 }
 
-public class MajorTests
+public class SoldierTests
 {
     [Fact]
-    public void Major_SpeedsExcavation_WithFullMaterialConservation()
+    public void Soldier_SpeedsExcavation_WithFullMaterialConservation()
     {
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = ColonyTestWorld.Founded(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0 });
-        var site = (X0: 70, Y0: 30, X1: 80, Y1: 35);
+        // Phase 19 fix of a latent vacuity: the old rect (70,30)-(80,35)
+        // has been SKY since Phase 15 scaled the world (ground starts at 60),
+        // so 'dug cells > 0' passed on already-air cells without any digging.
+        // The site now sits in real dirt glued to the chamber's right wall.
+        var site = (X0: 122, Y0: 62, X1: 132, Y1: 67);
         colony.ActiveDigSite = DigSite.FromRect(site.X0, site.Y0, site.X1, site.Y1); // Phase 11: DigSite type
         colony.SpoilDropX = 100;
-        colony.Spawn(Caste.Major, colony.HomeCenter.X, colony.HomeCenter.Y);
+        colony.Spawn(Caste.Soldier, colony.HomeCenter.X, colony.HomeCenter.Y);
 
         // Phase 13: rock is diggable (Rock -> LooseRock), so conservation is
         // over ALL solid cells + carried + in-flight.
@@ -276,7 +280,7 @@ public class MajorTests
 
         ColonyTestWorld.Run(colony, sim, 4000);
 
-        // The major actually excavated the site.
+        // The soldier actually excavated the site (Major's inherited duty).
         int dugCells = 0;
         for (int y = site.Y0; y <= site.Y1; y++)
         {
@@ -285,29 +289,34 @@ public class MajorTests
                 if (grid[x, y] == CellMaterial.Air) dugCells++;
             }
         }
-        Assert.True(dugCells > 0, "Major should have excavated cells in the active dig site");
+        Assert.True(dugCells > 0, "Soldier should have excavated cells in the active dig site");
 
         // Conservation: dug material is settled spoil, in flight, or in jaws.
         int after = DiggableInWorld();
-        int carried = colony.Majors[0].Carrying is null ? 0 : 1;
+        int carried = colony.Soldiers[0].Carrying is null ? 0 : 1;
         Assert.Equal(before, after + carried + sim.ActiveParticleCount);
     }
 
     [Fact]
-    public void Major_WithNoDigSite_IsIdle_AndTouchesNothing()
+    public void Soldier_WithNoDigSite_StandsGuard_AndTouchesNothing()
     {
+        // Phase 19: the old Major went idle-in-place here; a Soldier with no
+        // dig and no burial work takes up the guard post instead — but the
+        // role-purity half of the old test is unchanged: guarding must not
+        // gather, process, or tend.
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = ColonyTestWorld.Founded(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0 });
         colony.Nodes.Add(new ResourceNode(80, 59, 100));
         colony.RawMaterial = 10;
-        colony.Spawn(Caste.Major, colony.HomeCenter.X, colony.HomeCenter.Y);
-        var majorPos = (colony.Majors[0].X, colony.Majors[0].Y);
+        colony.Spawn(Caste.Soldier, colony.HomeCenter.X, colony.HomeCenter.Y);
 
         ColonyTestWorld.Run(colony, sim, 3000);
 
-        // Idle means idle: no movement, no gathering, no processing.
-        Assert.Equal(majorPos, (colony.Majors[0].X, colony.Majors[0].Y));
+        // Standing guard at the post (entrance mouth — the chamber floor at
+        // the entrance column in this surface-open test world).
+        Assert.True(colony.Soldiers[0].OnGuard, "Soldier never reached its guard post");
+        Assert.Equal(colony.GuardPost, (colony.Soldiers[0].X, colony.Soldiers[0].Y));
         Assert.Equal(100, colony.Nodes[0].Remaining, 3);
         Assert.Equal(10, colony.RawMaterial, 3);
         Assert.Equal(colony.Config.StarterResource, colony.FarmedResource, 3);
@@ -321,16 +330,17 @@ public class OffspringTests
     {
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = ColonyTestWorld.Founded(grid, sim);
-        // Phase 18: satisfy the Gardener population gate up front so the
-        // full four-way distribution is exercised; the gate itself has its
-        // own dedicated test below.
-        for (int i = 0; i < colony.Config.GardenerUnlockPopulation; i++)
+        // Phase 18/19: satisfy BOTH population gates up front so the full
+        // four-caste distribution is exercised; each gate has its own
+        // dedicated test below.
+        int gates = Math.Max(colony.Config.GardenerUnlockPopulation, colony.Config.SoldierUnlockPopulation);
+        for (int i = 0; i < gates; i++)
         {
             colony.Spawn(Caste.Minim, colony.HomeCenter.X, colony.HomeCenter.Y);
         }
 
         const int trials = 20_000;
-        int survived = 0, majors = 0, foragers = 0, minims = 0, gardeners = 0;
+        int survived = 0, soldiers = 0, foragers = 0, minims = 0, gardeners = 0;
         for (int i = 0; i < trials; i++)
         {
             var o = colony.RollOffspring();
@@ -338,7 +348,7 @@ public class OffspringTests
             survived++;
             switch (o.Caste)
             {
-                case Caste.Major: majors++; break;
+                case Caste.Soldier: soldiers++; break;
                 case Caste.Forager: foragers++; break;
                 case Caste.Minim: minims++; break;
                 case Caste.Gardener: gardeners++; break;
@@ -351,16 +361,43 @@ public class OffspringTests
         // Generous ±0.03 tolerances — a distribution sanity check, not an
         // RNG audit.
         double pSurvive = colony.Config.EggSurvivalChance;
-        double pMajor = colony.Config.MajorChance;
-        double pForager = (1 - pMajor) * colony.Config.ForagerShareOfRemainder;
-        double pCaregiver = (1 - pMajor) * (1 - colony.Config.ForagerShareOfRemainder);
+        double pSoldier = colony.Config.SoldierChance;
+        double pForager = (1 - pSoldier) * colony.Config.ForagerShareOfRemainder;
+        double pCaregiver = (1 - pSoldier) * (1 - colony.Config.ForagerShareOfRemainder);
         double pGardener = pCaregiver * colony.Config.GardenerShareOfCaregivers;
         double pMinim = pCaregiver * (1 - colony.Config.GardenerShareOfCaregivers);
         Assert.InRange(survived / (double)trials, pSurvive - 0.03, pSurvive + 0.03);
-        Assert.InRange(majors / (double)survived, pMajor - 0.03, pMajor + 0.03);
+        Assert.InRange(soldiers / (double)survived, pSoldier - 0.03, pSoldier + 0.03);
         Assert.InRange(foragers / (double)survived, pForager - 0.03, pForager + 0.03);
         Assert.InRange(gardeners / (double)survived, pGardener - 0.03, pGardener + 0.03);
         Assert.InRange(minims / (double)survived, pMinim - 0.03, pMinim + 0.03);
+    }
+
+    [Fact]
+    public void SoldierRolls_ArePopulationGated_TheColonysMaturityMarker()
+    {
+        // Phase 19: below SoldierUnlockPopulation (real game.js value: 5)
+        // no Soldier can roll — the outline's "last caste to appear".
+        var (grid, sim) = ColonyTestWorld.Create();
+        var colony = ColonyTestWorld.Founded(grid, sim);
+        Assert.True(colony.WorkerCount < colony.Config.SoldierUnlockPopulation);
+        for (int i = 0; i < 5000; i++)
+        {
+            var o = colony.RollOffspring();
+            Assert.False(o.Survived && o.Caste == Caste.Soldier,
+                "a Soldier rolled below the population gate");
+        }
+        for (int i = 0; i < colony.Config.SoldierUnlockPopulation; i++)
+        {
+            colony.Spawn(Caste.Minim, colony.HomeCenter.X, colony.HomeCenter.Y);
+        }
+        bool anySoldier = false;
+        for (int i = 0; i < 5000 && !anySoldier; i++)
+        {
+            var o = colony.RollOffspring();
+            anySoldier = o.Survived && o.Caste == Caste.Soldier;
+        }
+        Assert.True(anySoldier, "no Soldier ever rolled once the gate was satisfied");
     }
 
     [Fact]
@@ -424,7 +461,9 @@ public class ScopeBoundaryTests
         // contamination, or New Queen / nuptial flight code anywhere in the
         // core assembly. Cheap check, documents the line clearly.
         var names = typeof(Grid).Assembly.GetTypes().Select(t => t.Name).ToList();
-        string[] forbidden = { "Soldier", "Pupa", "Groom", "Contamination", "NewQueen", "Alate", "Nuptial" };
+        // Phase 19: Soldier came OFF this list — it's real scope now, per
+        // the new outline. The rest remain deferred.
+        string[] forbidden = { "Pupa", "Groom", "Contamination", "NewQueen", "Alate", "Nuptial" };
         foreach (var name in names)
         {
             foreach (var f in forbidden)

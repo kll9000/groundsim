@@ -67,7 +67,7 @@ public class RockMiningTests
         };
         var colony = ColonyTestWorld.Founded(grid, sim, config);
         colony.Spawn(Caste.Forager, colony.HomeCenter.X, colony.HomeCenter.Y);
-        colony.Spawn(Caste.Major, colony.HomeCenter.X + 1, colony.HomeCenter.Y);
+        colony.Spawn(Caste.Soldier, colony.HomeCenter.X + 1, colony.HomeCenter.Y);
         colony.FarmedResource = config.GardenTriggerThreshold;
 
         // Phase 15: 25k → 200k (×8: the dig is ×GridScale² the cells and

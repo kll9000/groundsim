@@ -170,14 +170,14 @@ public class DeathAndBurialTests
         var graveyard = colony.AddExcavatedRoom(RoomType.Graveyard, (h.X0 - 10, h.Y0 + 2, h.X0 - 1, h.Y1)); // touches home's air
         colony.Corpses.Add(new Colony.Corpse { X = colony.HomeCenter.X - 3, Y = colony.HomeCenter.Y }); // on the home floor, walkable
         colony.Stats.Deaths = 1;
-        colony.Spawn(Caste.Major, colony.HomeCenter.X + 2, colony.HomeCenter.Y);
+        colony.Spawn(Caste.Soldier, colony.HomeCenter.X + 2, colony.HomeCenter.Y);
 
         ColonyTestWorld.Run(colony, sim, 8_000);
 
         Assert.Empty(colony.Corpses);
         Assert.Equal(1, colony.Stats.Burials);
         Assert.Equal(0, colony.Stats.EmergencyBurials);
-        Assert.False(colony.Majors[0].CarryingCorpse);
+        Assert.False(colony.Soldiers[0].CarryingCorpse);
         // The remains physically settled inside the graveyard.
         int remainsInGraveyard = graveyard.Cells.Count(c => grid[c.X, c.Y] == CellMaterial.Remains);
         Assert.True(remainsInGraveyard >= 1, "no Remains material settled in the graveyard");
@@ -200,16 +200,16 @@ public class DeathAndBurialTests
         // A corpse sealed in solid ground far below — no walkable route.
         colony.Corpses.Add(new Colony.Corpse { X = 30, Y = 110 });
         colony.Stats.Deaths = 1;
-        colony.Spawn(Caste.Major, colony.HomeCenter.X, colony.HomeCenter.Y);
+        colony.Spawn(Caste.Soldier, colony.HomeCenter.X, colony.HomeCenter.Y);
 
-        ColonyTestWorld.Run(colony, sim, Major.BurialLegBudgetTicks + 500);
+        ColonyTestWorld.Run(colony, sim, Soldier.BurialLegBudgetTicks + 500);
 
         // Safety net fired: the corpse was released with a retry gate, the
         // hauler stood down (not carrying, not stuck), nothing was lost.
         Assert.Single(colony.Corpses);
         Assert.False(colony.Corpses[0].Claimed);
         Assert.True(colony.Corpses[0].NextAttemptTick > 0, "released corpse should carry a retry cooldown");
-        Assert.False(colony.Majors[0].CarryingCorpse);
+        Assert.False(colony.Soldiers[0].CarryingCorpse);
         Assert.Equal(0, colony.Stats.Burials);
         Assert.Equal(colony.Stats.Deaths, colony.Corpses.Count + colony.Stats.Burials);
     }
@@ -232,9 +232,9 @@ public class DeathAndBurialTests
         foreach (var c in graveyard.Cells) grid[c.X, c.Y] = CellMaterial.Dirt;
         colony.Corpses.Add(new Colony.Corpse { X = colony.HomeCenter.X - 3, Y = colony.HomeCenter.Y });
         colony.Stats.Deaths = 1;
-        colony.Spawn(Caste.Major, colony.HomeCenter.X + 2, colony.HomeCenter.Y);
+        colony.Spawn(Caste.Soldier, colony.HomeCenter.X + 2, colony.HomeCenter.Y);
 
-        ColonyTestWorld.Run(colony, sim, Major.BurialLegBudgetTicks * 2 + 1000);
+        ColonyTestWorld.Run(colony, sim, Soldier.BurialLegBudgetTicks * 2 + 1000);
 
         // The corpse was picked up, the route never resolved, and the
         // emergency lay-down fired: buried where the hauler stood, tracked
@@ -242,7 +242,7 @@ public class DeathAndBurialTests
         Assert.Empty(colony.Corpses);
         Assert.Equal(1, colony.Stats.Burials);
         Assert.Equal(1, colony.Stats.EmergencyBurials);
-        Assert.False(colony.Majors[0].CarryingCorpse);
+        Assert.False(colony.Soldiers[0].CarryingCorpse);
         Assert.Equal(colony.Stats.Deaths, colony.Corpses.Count + colony.Stats.Burials);
     }
 
@@ -267,7 +267,7 @@ public class DeathAndBurialTests
             sim.Tick();
             if (t % 500 == 0)
             {
-                int inJaws = colony.Majors.Count(m => m.CarryingCorpse);
+                int inJaws = colony.Soldiers.Count(s => s.CarryingCorpse);
                 Assert.Equal(colony.Stats.Deaths,
                     colony.Corpses.Count + inJaws + colony.Stats.Burials);
             }

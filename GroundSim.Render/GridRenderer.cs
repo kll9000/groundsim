@@ -14,7 +14,7 @@ namespace GroundSim.Render;
 /// Phase 8 visual language (flat colors, no art assets):
 ///   yellow = falling particle      pink   = Queen
 ///   green  = Gardener (mint = Minim)   blue   = Forager
-///   red    = Major                 pale dot = egg
+///   red    = Soldier               pale dot = egg
 ///   excavated rooms get a subtle per-type background tint.
 /// </summary>
 public sealed class GridRenderer
@@ -35,10 +35,40 @@ public sealed class GridRenderer
     // Phase 18: Tender split — Gardener keeps the old Tender green (it
     // inherits the processing role Kevin has watched since Phase 8); Minim
     // gets a paler mint so caregivers read as their own, smaller caste.
+    // Phase 19: Soldier inherits Major's red (it inherits the dig/burial
+    // duties Kevin has watched under that color).
     private static readonly Color MinimColor = Color.FromRgb(170, 235, 190);
     private static readonly Color GardenerColor = Color.FromRgb(90, 200, 120);
     private static readonly Color ForagerColor = Color.FromRgb(80, 170, 255);
-    private static readonly Color MajorColor = Color.FromRgb(230, 65, 65);
+    private static readonly Color SoldierColor = Color.FromRgb(230, 65, 65);
+
+    // Phase 19 Part C: Kevin's exact caste-size hierarchy, in units of one
+    // dirt-cell diameter. Single source of truth — the renderer, the legend,
+    // the dirty-marking footprint, and the correspondence test all read
+    // THESE values. Queen and Forager sharing 4 is intentional per spec.
+    public static int SizeUnits(Caste caste) => caste switch
+    {
+        Caste.Minim => 2,
+        Caste.Gardener => 3,
+        Caste.Forager => 4,
+        Caste.Soldier => 5,
+        _ => 2,
+    };
+    public const int QueenSizeUnits = 4;
+
+    /// <summary>Phase 19: relative size (in the same dirt-cell units) for a
+    /// legend entry, or null for non-caste entries (which keep the square
+    /// swatch). Keyed by legend label so the legend stays single-source.</summary>
+    public static int? LegendSizeUnits(string label) => label switch
+    {
+        "Minim" => SizeUnits(Caste.Minim),
+        "Gardener" => SizeUnits(Caste.Gardener),
+        "Forager" => SizeUnits(Caste.Forager),
+        "Soldier" => SizeUnits(Caste.Soldier),
+        "Queen" => QueenSizeUnits,
+        _ => null,
+    };
+
     private static readonly Color EggColor = Color.FromRgb(240, 240, 215);
 
     private static readonly Color AirColor = Color.FromRgb(24, 26, 34);
@@ -71,7 +101,7 @@ public sealed class GridRenderer
         ("Minim", MinimColor),
         ("Gardener", GardenerColor),
         ("Forager", ForagerColor),
-        ("Major", MajorColor),
+        ("Soldier", SoldierColor),
         ("Egg", EggColor),
         ("Remains", MaterialColor(CellMaterial.Remains)),
         ("Home room", HomeTint),
@@ -130,11 +160,14 @@ public sealed class GridRenderer
             DrawDot(egg.X, egg.Y, EggColor);
         }
         foreach (var c in colony.Corpses) DrawDot(c.X, c.Y, MaterialColor(CellMaterial.Remains));
-        foreach (var m in colony.Minims) DrawCell(m.X, m.Y, MinimColor);
-        foreach (var g in colony.Gardeners) DrawCell(g.X, g.Y, GardenerColor);
-        foreach (var f in colony.Foragers) DrawCell(f.X, f.Y, ForagerColor);
-        foreach (var m in colony.Majors) DrawCell(m.X, m.Y, MajorColor);
-        DrawCell(colony.Queen.X, colony.Queen.Y, QueenColor);
+        // Phase 19 Part C: castes render as circles sized by SizeUnits —
+        // purely visual; the agent's grid cell (all gameplay logic) is the
+        // circle's CENTER and is unchanged.
+        foreach (var m in colony.Minims) DrawCasteCircle(m.X, m.Y, SizeUnits(Caste.Minim), MinimColor);
+        foreach (var g in colony.Gardeners) DrawCasteCircle(g.X, g.Y, SizeUnits(Caste.Gardener), GardenerColor);
+        foreach (var f in colony.Foragers) DrawCasteCircle(f.X, f.Y, SizeUnits(Caste.Forager), ForagerColor);
+        foreach (var s in colony.Soldiers) DrawCasteCircle(s.X, s.Y, SizeUnits(Caste.Soldier), SoldierColor);
+        DrawCasteCircle(colony.Queen.X, colony.Queen.Y, QueenSizeUnits, QueenColor);
     }
 
     /// <summary>Background color for a cell: material color, with excavated
@@ -159,6 +192,41 @@ public sealed class GridRenderer
             }
         }
         return AirColor;
+    }
+
+    /// <summary>Phase 19 Part C: a filled circle of the given diameter in
+    /// dirt-cell units, centered on the agent's cell. Drawn as per-row
+    /// horizontal spans, so pixels OUTSIDE the circle are never written —
+    /// the square-corner background stays intact (the dirty-cell system
+    /// restores everything underneath next frame via the widened entity
+    /// footprint marks in MainWindow/App).</summary>
+    private void DrawCasteCircle(int cellX, int cellY, int units, Color c)
+    {
+        int d = units * CellSize;
+        double r = d / 2.0;
+        double cx = cellX * CellSize + CellSize / 2.0;
+        double cy = cellY * CellSize + CellSize / 2.0;
+        int bmpW = Bitmap.PixelWidth, bmpH = Bitmap.PixelHeight;
+        for (int py = (int)Math.Floor(cy - r); py < (int)Math.Ceiling(cy + r); py++)
+        {
+            if (py < 0 || py >= bmpH) continue;
+            double dy = py + 0.5 - cy;
+            double half = Math.Sqrt(Math.Max(0, r * r - dy * dy));
+            int x0 = Math.Max(0, (int)Math.Floor(cx - half));
+            int x1 = Math.Min(bmpW, (int)Math.Ceiling(cx + half));
+            int w = x1 - x0;
+            if (w <= 0) continue;
+            var row = new byte[w * 4];
+            for (int i = 0; i < w; i++)
+            {
+                int o = i * 4;
+                row[o] = c.B;
+                row[o + 1] = c.G;
+                row[o + 2] = c.R;
+                row[o + 3] = 255;
+            }
+            Bitmap.WritePixels(new System.Windows.Int32Rect(x0, py, w, 1), row, w * 4, 0);
+        }
     }
 
     private void DrawCell(int x, int y, Color c)

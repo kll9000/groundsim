@@ -211,7 +211,7 @@ public class OrganicPlannerTests
 
         // Colony level: trigger, dig FOR REAL, complete — no stall.
         colony.Spawn(Caste.Forager, colony.HomeCenter.X, colony.HomeCenter.Y);
-        colony.Spawn(Caste.Major, colony.HomeCenter.X + 1, colony.HomeCenter.Y);
+        colony.Spawn(Caste.Soldier, colony.HomeCenter.X + 1, colony.HomeCenter.Y);
         colony.FarmedResource = colony.Config.GardenTriggerThreshold;
         ColonyTestWorld.Run(colony, sim, 64_000); // Phase 15: ×8 (GridScale² cells, ×GridScale hauls)
 

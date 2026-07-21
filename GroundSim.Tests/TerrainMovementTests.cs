@@ -153,7 +153,7 @@ public class SurfaceMovementTests
             foreach (var w in colony.Minims.Select(x => (x.X, x.Y))
                          .Concat(colony.Gardeners.Select(x => (x.X, x.Y)))
                 .Concat(colony.Foragers.Select(x => (x.X, x.Y)))
-                .Concat(colony.Majors.Select(x => (x.X, x.Y))))
+                .Concat(colony.Soldiers.Select(x => (x.X, x.Y))))
             {
                 if (i < everGrounded.Length && !Terrain.IsVisiblyFloating(grid, w.X, w.Y)) everGrounded[i] = true;
                 i++;

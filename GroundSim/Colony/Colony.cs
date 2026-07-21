@@ -1,9 +1,9 @@
 namespace GroundSim;
 
 // Phase 18 Part A (new outline): Tender split into Minim (tends eggs) and
-// Gardener (processes fungus) — separate rolls from egg maturation, no
-// caste-maturation mechanic, per Kevin's decision.
-public enum Caste { Minim, Gardener, Forager, Major }
+// Gardener (processes fungus). Phase 19: Major removed, Soldier added —
+// the final new-outline roster (Queen is the founder, never rolled).
+public enum Caste { Minim, Gardener, Forager, Soldier }
 
 public sealed class ColonyStats
 {
@@ -82,11 +82,11 @@ public sealed class Colony
     public List<Minim> Minims { get; } = new();
     public List<Gardener> Gardeners { get; } = new();
     public List<Forager> Foragers { get; } = new();
-    public List<Major> Majors { get; } = new();
+    public List<Soldier> Soldiers { get; } = new();
 
     /// <summary>Total living workers across all castes (the population that
     /// gates population-locked caste rolls, Phase 18).</summary>
-    public int WorkerCount => Minims.Count + Gardeners.Count + Foragers.Count + Majors.Count;
+    public int WorkerCount => Minims.Count + Gardeners.Count + Foragers.Count + Soldiers.Count;
     public List<ResourceNode> Nodes { get; } = new();
     public ColonyStats Stats { get; } = new();
     public ColonyMilestones Milestones { get; } = new();
@@ -282,7 +282,7 @@ public sealed class Colony
         foreach (var m in Minims) m.Tick(this, Grid);
         foreach (var g in Gardeners) g.Tick(this, Grid);
         foreach (var f in Foragers) f.Tick(this, Grid);
-        foreach (var m in Majors) m.Tick(this, Grid);
+        foreach (var s in Soldiers) s.Tick(this, Grid);
 
         for (int i = Eggs.Count - 1; i >= 0; i--)
         {
@@ -349,12 +349,25 @@ public sealed class Colony
             Die(f.X, f.Y);
             Foragers.RemoveAt(i);
         }
-        for (int i = Majors.Count - 1; i >= 0; i--)
+        for (int i = Soldiers.Count - 1; i >= 0; i--)
         {
-            if (TickCount < Majors[i].DiesAtTick) continue;
-            Majors[i].OnDeath(this);
-            Die(Majors[i].X, Majors[i].Y);
-            Majors.RemoveAt(i);
+            if (TickCount < Soldiers[i].DiesAtTick) continue;
+            Soldiers[i].OnDeath(this);
+            Die(Soldiers[i].X, Soldiers[i].Y);
+            Soldiers.RemoveAt(i);
+        }
+    }
+
+    /// <summary>Phase 19: where an off-duty Soldier stands guard — the
+    /// entrance mouth, live-computed (the mound grows, so the opening's
+    /// top surface moves; a fixed cell would end up buried).</summary>
+    public (int X, int Y) GuardPost
+    {
+        get
+        {
+            int surf = 0;
+            while (surf < Grid.Height && Grid.IsAir(EntranceX, surf)) surf++;
+            return (EntranceX, Math.Max(0, surf - 1));
         }
     }
 
@@ -648,13 +661,14 @@ public sealed class Colony
 
     /// <summary>
     /// Survival + caste rolls for one matured egg. Rarity-ordered, rarest
-    /// first: Major roll, then Forager, then the caregiver split
-    /// Gardener-vs-Minim with Minim as the most-common default. Phase 18:
-    /// the Gardener roll is population-gated (the outline ties Gardener
-    /// appearance to the operation scaling up; below the gate the roll
-    /// falls through to Minim, so the earliest colony is Minim-heavy,
-    /// matching the outline's "first and smallest workers"). (Soldier and
-    /// New Queen rolls are deferred and deliberately absent.)
+    /// first: Soldier (population-gated — the outline's "last to appear,
+    /// the colony's maturity marker", using Colony Builder's REAL tuned
+    /// soldierFraction/soldierUnlockPopulation from Phase 14), then
+    /// Forager, then the caregiver split Gardener-vs-Minim with Minim as
+    /// the most-common default (Phase 18 gate unchanged). A gated roll
+    /// that can't fire falls through to the commoner castes, so the early
+    /// colony is Minim/Forager-heavy and Soldiers arrive last, exactly the
+    /// outline's developmental sequence. (New Queen rolls remain deferred.)
     /// </summary>
     public OffspringOutcome RollOffspring()
     {
@@ -662,9 +676,10 @@ public sealed class Colony
         {
             return new OffspringOutcome(false, default);
         }
-        if (_rng.NextDouble() < Config.MajorChance)
+        if (WorkerCount >= Config.SoldierUnlockPopulation
+            && _rng.NextDouble() < Config.SoldierChance)
         {
-            return new OffspringOutcome(true, Caste.Major);
+            return new OffspringOutcome(true, Caste.Soldier);
         }
         if (_rng.NextDouble() < Config.ForagerShareOfRemainder)
         {
@@ -689,7 +704,7 @@ public sealed class Colony
             case Caste.Minim: Minims.Add(new Minim(x, y) { DiesAtTick = diesAt }); break;
             case Caste.Gardener: Gardeners.Add(new Gardener(x, y) { DiesAtTick = diesAt }); break;
             case Caste.Forager: Foragers.Add(new Forager(x, y) { DiesAtTick = diesAt }); break;
-            case Caste.Major: Majors.Add(new Major(x, y) { DiesAtTick = diesAt }); break;
+            case Caste.Soldier: Soldiers.Add(new Soldier(x, y) { DiesAtTick = diesAt }); break;
         }
         Milestones.FirstWorkerTick ??= TickCount;
     }

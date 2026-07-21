@@ -52,15 +52,14 @@ public sealed class ColonyConfig
     /// game.js survivalFraction: 0.3 (probability, no conversion).</summary>
     public double EggSurvivalChance { get; init; } = 0.3;
 
-    /// <summary>Rarest-first caste rolls: Major first, then Forager, then the
-    /// Gardener-vs-Minim caregiver split (Phase 18; Minim is the most-common
-    /// default). game.js majorFraction: 0.2 /
-    /// foragerFraction: 0.6 (probabilities, no conversion). NOTE: Colony
-    /// Builder gates these rolls behind population thresholds
-    /// (majorUnlockPopulation: 7, foragerUnlockPopulation: 4); GroundSim
-    /// rolls unconditionally from the start — structural gap, flagged in
-    /// the Phase 14 report, fractions only ported here.</summary>
-    public double MajorChance { get; init; } = 0.2;
+    /// <summary>Phase 19: Soldier replaces Major, using Colony Builder's
+    /// REAL tuned values, unused-but-known since Phase 14's Part C gap
+    /// list: soldierFraction: 0.15, soldierUnlockPopulation: 5 (workers
+    /// that must exist before a Soldier can roll; below it the roll falls
+    /// through to the commoner castes). The retired MajorChance (0.2, also
+    /// real) leaves with its caste.</summary>
+    public double SoldierChance { get; init; } = 0.15;
+    public int SoldierUnlockPopulation { get; init; } = 5;
     public double ForagerShareOfRemainder { get; init; } = 0.6;
 
     /// <summary>Phase 18 (new outline): of the caregiver remainder (the old

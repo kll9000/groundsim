@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     private readonly HashSet<Room> _tintedRooms = new();
     private readonly Stopwatch _frameTimer = Stopwatch.StartNew();
     private int _lastDirtyCount;
+    private readonly Dictionary<object, (int, int)> _lastEntityPos = new();
 
     // MaxZoom raised with the Phase 13 resolution change so the deepest
     // zoom still reaches ~40 px per cell (2 px × 20, matching the old
@@ -104,16 +105,41 @@ public partial class MainWindow : Window
         foreach (var (label, color) in GridRenderer.LegendEntries)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 1, 0, 1) };
-            row.Children.Add(new System.Windows.Shapes.Rectangle
+            var stroke = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF));
+            // Phase 19: caste entries get a CIRCLE swatch scaled to the
+            // caste's relative size (5 units = the full 12px slot), so the
+            // legend itself teaches the size hierarchy; everything else
+            // keeps the square swatch.
+            System.Windows.FrameworkElement swatch;
+            if (GridRenderer.LegendSizeUnits(label) is { } units)
             {
-                Width = 12,
-                Height = 12,
-                Fill = new System.Windows.Media.SolidColorBrush(color),
-                Stroke = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)),
-                StrokeThickness = 0.5,
-                Margin = new Thickness(0, 0, 6, 0),
-            });
+                double d = 12.0 * units / 5.0;
+                swatch = new System.Windows.Shapes.Ellipse
+                {
+                    Width = d,
+                    Height = d,
+                    Fill = new System.Windows.Media.SolidColorBrush(color),
+                    Stroke = stroke,
+                    StrokeThickness = 0.5,
+                    VerticalAlignment = System.Windows.VerticalAlignment.Center,
+                };
+                var holder = new System.Windows.Controls.Grid { Width = 12, Height = 12, Margin = new Thickness(0, 0, 6, 0) };
+                holder.Children.Add(swatch);
+                row.Children.Add(holder);
+            }
+            else
+            {
+                row.Children.Add(new System.Windows.Shapes.Rectangle
+                {
+                    Width = 12,
+                    Height = 12,
+                    Fill = new System.Windows.Media.SolidColorBrush(color),
+                    Stroke = stroke,
+                    StrokeThickness = 0.5,
+                    Margin = new Thickness(0, 0, 6, 0),
+                });
+            }
             row.Children.Add(new TextBlock
             {
                 Text = label,
@@ -175,12 +201,31 @@ public partial class MainWindow : Window
     private void MarkColonyEntities()
     {
         _dirty.MarkParticles(_sim);
-        _dirty.Mark(_colony.Queen.X, _colony.Queen.Y);
         foreach (var c in _colony.Corpses) _dirty.Mark(c.X, c.Y);
-        foreach (var m in _colony.Minims) _dirty.Mark(m.X, m.Y);
-        foreach (var g in _colony.Gardeners) _dirty.Mark(g.X, g.Y);
-        foreach (var f in _colony.Foragers) _dirty.Mark(f.X, f.Y);
-        foreach (var m in _colony.Majors) _dirty.Mark(m.X, m.Y);
+        // Phase 19: circles span multiple cells, so a MOVING ant must mark
+        // its old and new footprints or it leaves ghost trails of stale
+        // circle paint. Stationary ants mark nothing: circles are repainted
+        // by every DrawFrame regardless, and any terrain change beneath one
+        // is already marked by the physics — marking every footprint every
+        // tick was measured at 7x the per-tick render cost.
+        void MarkArea(int x, int y, int units)
+        {
+            int r = units / 2 + 1;
+            for (int dy = -r; dy <= r; dy++)
+                for (int dx = -r; dx <= r; dx++) _dirty.Mark(x + dx, y + dy);
+        }
+        void MarkIfMoved(object who, int x, int y, int units)
+        {
+            if (_lastEntityPos.TryGetValue(who, out var last) && last == (x, y)) return;
+            if (_lastEntityPos.TryGetValue(who, out var prev)) MarkArea(prev.Item1, prev.Item2, units);
+            MarkArea(x, y, units);
+            _lastEntityPos[who] = (x, y);
+        }
+        foreach (var m in _colony.Minims) MarkIfMoved(m, m.X, m.Y, GridRenderer.SizeUnits(Caste.Minim));
+        foreach (var g in _colony.Gardeners) MarkIfMoved(g, g.X, g.Y, GridRenderer.SizeUnits(Caste.Gardener));
+        foreach (var f in _colony.Foragers) MarkIfMoved(f, f.X, f.Y, GridRenderer.SizeUnits(Caste.Forager));
+        foreach (var s in _colony.Soldiers) MarkIfMoved(s, s.X, s.Y, GridRenderer.SizeUnits(Caste.Soldier));
+        MarkIfMoved(_colony.Queen, _colony.Queen.X, _colony.Queen.Y, GridRenderer.QueenSizeUnits);
         foreach (var egg in _colony.Eggs) _dirty.Mark(egg.X, egg.Y);
     }
 
@@ -193,7 +238,7 @@ public partial class MainWindow : Window
 
         StatusText.Text =
             $"build {BuildCommit}  PROTOTYPE (untuned constants)  stage: {_colony.CurrentStage}  " +
-            $"Mi:{_colony.Minims.Count} G:{_colony.Gardeners.Count} F:{_colony.Foragers.Count} M:{_colony.Majors.Count} eggs:{_colony.Eggs.Count}  " +
+            $"Mi:{_colony.Minims.Count} G:{_colony.Gardeners.Count} F:{_colony.Foragers.Count} S:{_colony.Soldiers.Count} eggs:{_colony.Eggs.Count}  " +
             $"raw {_colony.RawMaterial:0.0}  farmed {_colony.FarmedResource:0.0}  " +
             $"garden:{RoomState(garden)} nursery:{RoomState(nursery)}  " +
             $"tps {_clock.TicksPerSecond:0}{(_clock.Paused ? " PAUSED" : "")}  " +
@@ -260,7 +305,7 @@ public partial class MainWindow : Window
         foreach (var m in _colony.Minims) Add("Minim", () => (m.X, m.Y));
         foreach (var g in _colony.Gardeners) Add("Gardener", () => (g.X, g.Y));
         foreach (var f in _colony.Foragers) Add("Forager", () => (f.X, f.Y));
-        foreach (var m in _colony.Majors) Add("Major", () => (m.X, m.Y));
+        foreach (var s in _colony.Soldiers) Add("Soldier", () => (s.X, s.Y));
 
         // Click tolerance: ~2 cells in world units, but never tighter than
         // 10 screen pixels when zoomed far out.
