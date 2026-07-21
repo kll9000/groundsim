@@ -31,6 +31,29 @@ public class TerrainRuleTests
     }
 
     [Fact]
+    public void WorldBorder_IsNotAClimbableWall_Phase20Regression()
+    {
+        // Phase 20: the old "out-of-bounds reads as wall" convention made
+        // the world border a supported climbing highway (measured: foragers
+        // strung along x=0 up to y=0 — Kevin's "ants on the window edge").
+        // The border is open void: only REAL solid cells grant contact.
+        var grid = new Grid(20, 20);
+        for (int x = 0; x < 20; x++) grid[x, 15] = CellMaterial.Dirt; // floor
+
+        // Mid-air on the left border column, no in-bounds solid in reach:
+        // unsupported (falls), and the oracle agrees it's visibly floating.
+        Assert.False(Terrain.IsSupported(grid, 0, 8), "border column must not support");
+        Assert.True(Terrain.IsVisiblyFloating(grid, 0, 8), "oracle must call the bare border floating");
+        // Same on the right border and the top row.
+        Assert.False(Terrain.IsSupported(grid, 19, 8));
+        Assert.False(Terrain.IsSupported(grid, 10, 0), "top row must not be a walkable ceiling");
+        // Real contact at the border still works: standing on the floor.
+        Assert.True(Terrain.IsSupported(grid, 0, 14), "floor contact at the border is real support");
+        // Grid bottom remains supported by rule.
+        Assert.True(Terrain.IsSupported(grid, 0, 19));
+    }
+
+    [Fact]
     public void OpenPitWalls_RemainClimbable()
     {
         // The exact geometry that motivated the wall-cling amendment: a dug

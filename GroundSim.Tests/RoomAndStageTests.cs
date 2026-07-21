@@ -220,6 +220,22 @@ public class EndToEndStageTests
                 colony.Tick();
                 sim.Tick();
                 t++;
+                // Phase 20 regression net: no worker may ever be in the sky
+                // band above any legitimate mound top (groundLevel 60 −
+                // MoundMaxHeight 20 − margin 5 = y < 35). This is where the
+                // border-climbing bug lived; sampled every 200 ticks across
+                // all 10 seeds of the full colony lifecycle.
+                if (t % 200 == 0)
+                {
+                    foreach (var (wx, wy) in colony.Minims.Select(w => (w.X, w.Y))
+                                 .Concat(colony.Gardeners.Select(w => (w.X, w.Y)))
+                                 .Concat(colony.Foragers.Select(w => (w.X, w.Y)))
+                                 .Concat(colony.Soldiers.Select(w => (w.X, w.Y))))
+                    {
+                        Assert.True(wy >= 35,
+                            $"seed {seed} t={t}: worker at ({wx},{wy}) is in the sky — border-climb regression");
+                    }
+                }
                 if (t % 200 == 0 && colony.GetRoom(RoomType.Garden) is { Excavated: true } gs)
                 {
                     gardenSamples++;

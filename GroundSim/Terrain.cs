@@ -53,7 +53,13 @@ public static class Terrain
             {
                 if (dx == 0 && dy == 0) continue;
                 int nx = x + dx, ny = y + dy;
-                if (!grid.InBounds(nx, ny)) return false; // grid edge counts as a wall
+                // Phase 20: out-of-bounds is open void, NOT a wall — the old
+                // "edge counts as a wall" convention (shared with IsSupported)
+                // made the world border a climbable highway, and because BOTH
+                // the rule and this oracle agreed on it, every floating audit
+                // signed off on ants walking the window edge. Changed in
+                // lockstep with IsSupported (the pin tests require it).
+                if (!grid.InBounds(nx, ny)) continue;
                 if (grid[nx, ny] != CellMaterial.Air) return false;
             }
         }
@@ -91,7 +97,17 @@ public static class Terrain
             for (int dx = -1; dx <= 1; dx++)
             {
                 if (dx == 0 && dy == 0) continue;
-                if (!grid.IsAir(x + dx, y + dy)) return true; // out-of-bounds reads as wall
+                int nx = x + dx, ny = y + dy;
+                // Phase 20 fix: out-of-bounds is open void, NOT a wall. The
+                // old convention (`!IsAir` returns true for OOB) silently
+                // made every border cell "supported", turning the world's
+                // side columns into climbable walls and the top row into a
+                // walkable ceiling — measured in a 240k-tick app-world run
+                // as foragers strung along x=0 climbing to y=0 (Kevin's
+                // "ants walking on the window edge"). Only REAL solid cells
+                // grant contact; the grid bottom (above) remains supported.
+                if (!grid.InBounds(nx, ny)) continue;
+                if (grid[nx, ny] != CellMaterial.Air) return true;
             }
         }
         return false;
