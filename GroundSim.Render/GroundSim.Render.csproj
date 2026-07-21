@@ -13,4 +13,31 @@
     <ApplicationIcon>groundsim.ico</ApplicationIcon>
   </PropertyGroup>
 
+  <!-- Build-version display: embed the current git commit into
+       AssemblyInformationalVersion automatically at build time, so the
+       window can show exactly which commit it was compiled from and the
+       identifier can never silently go stale from a forgotten manual
+       bump. "+dirty" is appended when the working tree has uncommitted
+       changes. Falls back to "unknown" outside a git checkout. -->
+  <Target Name="EmbedGitCommit" BeforeTargets="GetAssemblyAttributes">
+    <Exec Command="git rev-parse --short=8 HEAD"
+          ConsoleToMSBuild="true" ContinueOnError="true"
+          StandardOutputImportance="low" StandardErrorImportance="low"
+          WorkingDirectory="$(MSBuildProjectDirectory)">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitCommit" />
+      <Output TaskParameter="ExitCode" PropertyName="_GitExit" />
+    </Exec>
+    <Exec Command="git status --porcelain"
+          ConsoleToMSBuild="true" ContinueOnError="true"
+          StandardOutputImportance="low" StandardErrorImportance="low"
+          WorkingDirectory="$(MSBuildProjectDirectory)">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitDirty" />
+    </Exec>
+    <PropertyGroup>
+      <_GitCommit Condition="'$(_GitExit)' != '0' OR '$(_GitCommit)' == ''">unknown</_GitCommit>
+      <_GitCommit Condition="'$(_GitDirty)' != ''">$(_GitCommit)+dirty</_GitCommit>
+      <InformationalVersion>$(_GitCommit)</InformationalVersion>
+    </PropertyGroup>
+  </Target>
+
 </Project>

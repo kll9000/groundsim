@@ -46,9 +46,20 @@ public partial class MainWindow : Window
     private bool _dragging;
     private bool _mouseDown;
 
+    /// <summary>The git commit this build was compiled from, injected at
+    /// build time via AssemblyInformationalVersion (see the csproj's
+    /// EmbedGitCommit target) — automatic, never needs a manual bump.</summary>
+    private static readonly string BuildCommit =
+        System.Reflection.Assembly.GetExecutingAssembly()
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            is [System.Reflection.AssemblyInformationalVersionAttribute a, ..] ? a.InformationalVersion : "unknown";
+
     public MainWindow()
     {
         InitializeComponent();
+        // Build identity in the title bar (always visible, even when the
+        // status line is busy) — Kevin can match it against git log.
+        Title = $"GroundSim — Colony Prototype  [build {BuildCommit}]";
 
         (_grid, _sim, _colony) = ColonyScenario.Create();
         _dirty = new DirtyTracker(_grid);
@@ -181,7 +192,7 @@ public partial class MainWindow : Window
         string followText = _follow is { } f ? $"  following {f.Label} (Esc releases)" : "";
 
         StatusText.Text =
-            $"PROTOTYPE (untuned constants)  stage: {_colony.CurrentStage}  " +
+            $"build {BuildCommit}  PROTOTYPE (untuned constants)  stage: {_colony.CurrentStage}  " +
             $"Mi:{_colony.Minims.Count} G:{_colony.Gardeners.Count} F:{_colony.Foragers.Count} M:{_colony.Majors.Count} eggs:{_colony.Eggs.Count}  " +
             $"raw {_colony.RawMaterial:0.0}  farmed {_colony.FarmedResource:0.0}  " +
             $"garden:{RoomState(garden)} nursery:{RoomState(nursery)}  " +
