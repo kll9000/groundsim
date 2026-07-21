@@ -115,6 +115,24 @@ public sealed class Soldier
             else if (++_burialLegTicks > BurialLegBudgetTicks)
             {
                 // Emergency lay-down: route to the graveyard is blocked.
+                //
+                // Phase 21.6 — honest note on how often this fires. Phase 21
+                // originally called the emergency share "bounded"; longer runs
+                // disproved that. Emergency lay-downs as a fraction of all
+                // burials keep DRIFTING UPWARD with run length: ~13% at 200k
+                // ticks, ~20% at 400k, ~28% at 800k. That is genuinely not a
+                // stall — burials keep completing throughout, and the colony
+                // does not wedge — but it is also NOT confirmed bounded, and
+                // nothing here should be written as if it were.
+                //
+                // If this ever comes to matter (corpses visibly accumulating
+                // outside the Graveyard rather than in it), look FIRST at
+                // graveyard-approach congestion: the drift is consistent with
+                // more haulers contending for the same approach corridor as
+                // the colony matures, so more of them exhaust
+                // BurialLegBudgetTicks before arriving. That is a hypothesis
+                // from the shape of the curve, not a diagnosed cause — measure
+                // before acting on it.
                 colony.BuryRemains(X, Y, emergency: true);
                 CarryingCorpse = false;
                 ResetBurialState();

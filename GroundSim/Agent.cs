@@ -319,7 +319,47 @@ public sealed class Agent
     /// blockage, exhuming it, and hauling it to the mound (measured: 188
     /// burials, 1 remains cell left in the graveyard, 167 strewn outside —
     /// Kevin's bodies-by-the-mound sighting). Remains clear via timed decay
-    /// (ColonyConfig.RemainsDecayTicks) instead of digging.</summary>
+    /// (ColonyConfig.RemainsDecayTicks) instead of digging.
+    ///
+    /// Phase 21.5/21.6 — why this clause is load-bearing on its own, and not
+    /// merely redundant with the frontier predicates:
+    ///
+    /// The ordinary exhumation path (a COMPLETED room's standing maintenance
+    /// responsibility re-digging its own burials) is stopped upstream, at the
+    /// maintenance-activation gate. But there is a second path that bypasses
+    /// that gate entirely: Remains sitting inside a site that is ACTIVELY
+    /// being dug — e.g. an emergency lay-down (Soldier.BuryRemains with
+    /// emergency: true) landing inside a planned room's footprint, which
+    /// OrganicPlanner will accept because it tolerates a fraction of
+    /// already-air chamber cells. On that path an agent digs under its own
+    /// dig-site authority, never consulting maintenance, and THIS CLAUSE IS
+    /// THE ONLY GUARD.
+    ///
+    /// Reachability, stated honestly: that path is STRUCTURALLY REACHABLE but
+    /// NOT OBSERVED IN PRACTICE — zero occurrences across 800k ticks, two
+    /// seeds, 253 recorded emergency lay-downs. Decay independently suppresses
+    /// it regardless of this guard: remains vanish in ~15k ticks
+    /// (RemainsDecayTicks), while planning-to-excavation for a room takes tens
+    /// of thousands of ticks, so a dig site rarely gets the chance to open
+    /// over a corpse that still exists. Do not describe this as an observed
+    /// path, and do not treat "never seen" as "cannot happen" — the guard
+    /// stays.
+    ///
+    /// The deeper invariant is AGREEMENT. This agent-side predicate and the
+    /// frontier predicates (DigSite.HasRemainingDiggable,
+    /// Room.HasRemainingDiggable) must answer IDENTICALLY for Remains cells.
+    /// Disagree in one direction (agent digs what the frontier ignores) and
+    /// you get exhumation; disagree in the other (frontier demands what the
+    /// agent refuses) and you get a livelock — the site never reports
+    /// complete, and diggers cycle forever on a cell nobody will take. Both
+    /// failure shapes are real; changing either side alone reintroduces one.
+    ///
+    /// Pinned by ExhumationDiscriminationTests (in Phase21_5Tests.cs):
+    /// MaintenanceOverRemains_NeverActivates_NeverExhumes_NeverLivelocks
+    /// covers both directions of the disagreement, and
+    /// RemainsInsideAnActiveDigSite_AreSkipped_AndDoNotBlockCompletion
+    /// covers the active-dig-site path above. Both were proven to
+    /// discriminate by reverting the fix and watching them fail.</summary>
     private static bool IsDiggable(CellMaterial m)
         => m != CellMaterial.Air && m != CellMaterial.Remains;
 
