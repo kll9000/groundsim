@@ -358,16 +358,26 @@ public sealed class Colony
         }
     }
 
-    /// <summary>Phase 19: where an off-duty Soldier stands guard — the
-    /// entrance mouth, live-computed (the mound grows, so the opening's
-    /// top surface moves; a fixed cell would end up buried).</summary>
+    /// <summary>Phase 19: where an off-duty Soldier stands guard — beside
+    /// the surface entrance mouth, live-computed (the mound grows, so the
+    /// rim rises; a fixed cell would end up buried).
+    /// Phase 19.5 correction: the original scan went down the ENTRANCE
+    /// column itself and fell straight through the open shaft to the
+    /// chamber floor (verification finding). The scan now walks the RIM
+    /// column just outside the entrance opening, which is solid below the
+    /// surface — the post is the air cell standing on the crater rim next
+    /// to the hole. (In roofless test worlds where the "rim" column is
+    /// inside an open-pit chamber, the post is the pit floor beside the
+    /// entrance center — the nearest standable cell to a mouth that is
+    /// the whole pit.)</summary>
     public (int X, int Y) GuardPost
     {
         get
         {
+            int rimX = Math.Clamp(EntranceX + _entranceHalfWidth + 1, 1, Grid.Width - 2);
             int surf = 0;
-            while (surf < Grid.Height && Grid.IsAir(EntranceX, surf)) surf++;
-            return (EntranceX, Math.Max(0, surf - 1));
+            while (surf < Grid.Height && Grid.IsAir(rimX, surf)) surf++;
+            return (rimX, Math.Max(0, surf - 1));
         }
     }
 

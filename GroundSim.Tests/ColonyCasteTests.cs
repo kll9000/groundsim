@@ -277,19 +277,30 @@ public class SoldierTests
             return n;
         }
         int before = DiggableInWorld();
+        // Phase 19.5: before/after DELTA, not absolute state — the absolute
+        // "count air cells, assert > 0" idiom silently passed for four
+        // phases while the site rect sat in the sky. A delta is structurally
+        // immune to whatever the site's starting state happens to be.
+        int SolidInSite()
+        {
+            int n = 0;
+            for (int y = site.Y0; y <= site.Y1; y++)
+            {
+                for (int x = site.X0; x <= site.X1; x++)
+                {
+                    if (grid[x, y] != CellMaterial.Air) n++;
+                }
+            }
+            return n;
+        }
+        int siteSolidBefore = SolidInSite();
+        Assert.True(siteSolidBefore > 0, "test setup: the dig site must start with real material");
 
         ColonyTestWorld.Run(colony, sim, 4000);
 
         // The soldier actually excavated the site (Major's inherited duty).
-        int dugCells = 0;
-        for (int y = site.Y0; y <= site.Y1; y++)
-        {
-            for (int x = site.X0; x <= site.X1; x++)
-            {
-                if (grid[x, y] == CellMaterial.Air) dugCells++;
-            }
-        }
-        Assert.True(dugCells > 0, "Soldier should have excavated cells in the active dig site");
+        Assert.True(SolidInSite() < siteSolidBefore,
+            "Soldier should have removed material from the active dig site");
 
         // Conservation: dug material is settled spoil, in flight, or in jaws.
         int after = DiggableInWorld();
