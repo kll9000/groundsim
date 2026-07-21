@@ -268,8 +268,10 @@ public class DeathAndBurialTests
             if (t % 500 == 0)
             {
                 int inJaws = colony.Soldiers.Count(s => s.CarryingCorpse);
+                // Phase 21: the ledger gains the decay term (the deliberate
+                // conservation exception) — every death is still accounted.
                 Assert.Equal(colony.Stats.Deaths,
-                    colony.Corpses.Count + inJaws + colony.Stats.Burials);
+                    colony.Corpses.Count + inJaws + colony.Stats.Burials + colony.Stats.CorpsesDecayed);
             }
         }
 

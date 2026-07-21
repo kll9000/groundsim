@@ -313,9 +313,15 @@ public sealed class Agent
     }
 
     /// <summary>Phase 13: everything solid is diggable — terrain Rock just
-    /// takes longer (see RockDigTicks chipping in TickDig).</summary>
+    /// takes longer (see RockDigTicks chipping in TickDig).
+    /// Phase 21: EXCEPT Remains. Buried bodies are inert, not spoil — the
+    /// graveyard's own maintenance site was treating each burial as
+    /// blockage, exhuming it, and hauling it to the mound (measured: 188
+    /// burials, 1 remains cell left in the graveyard, 167 strewn outside —
+    /// Kevin's bodies-by-the-mound sighting). Remains clear via timed decay
+    /// (ColonyConfig.RemainsDecayTicks) instead of digging.</summary>
     private static bool IsDiggable(CellMaterial m)
-        => m != CellMaterial.Air;
+        => m != CellMaterial.Air && m != CellMaterial.Remains;
 
     /// <summary>Ticks of chipping needed per Rock cell (dirt and everything
     /// else: 1). Rock mining is open to ALL diggers — restricting it to

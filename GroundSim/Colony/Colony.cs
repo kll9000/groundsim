@@ -45,6 +45,18 @@ public sealed class ColonyStats
     /// <summary>Raw material in a Forager's jaws at her death — accounted
     /// (not silently lost) so gather-pipeline audits can close their books.</summary>
     public double RawLostToDeaths { get; set; }
+
+    // ---- Phase 21: decay accounting. Decay DESTROYS matter — the one
+    // deliberate exception to conservation — so the death ledger becomes:
+    // Deaths == Corpses-in-world + corpses-in-jaws + Burials + CorpsesDecayed,
+    // and Burials == Remains-cells-standing + RemainsDecayed (minus remains
+    // displaced by physics, which stay conserved as ordinary cells). ----
+
+    /// <summary>Unburied corpses that rotted away where they fell.</summary>
+    public int CorpsesDecayed { get; set; }
+
+    /// <summary>Settled Remains cells that decayed to Air.</summary>
+    public int RemainsDecayed { get; set; }
 }
 
 /// <summary>Tick numbers at which colony-stage milestones occurred (null = not yet).</summary>
@@ -295,6 +307,7 @@ public sealed class Colony
         }
 
         ReapDeadWorkers();
+        DecayDeadMatter();
     }
 
     // ---- Phase 18 Part C: worker death (the Queen is EXEMPT — her death
@@ -309,6 +322,8 @@ public sealed class Colony
         public int Y { get; init; }
         public int NextAttemptTick { get; set; }
         public bool Claimed { get; set; }
+        /// <summary>Phase 21: when this worker died — drives corpse decay.</summary>
+        public int DiedAtTick { get; init; }
     }
 
     public List<Corpse> Corpses { get; } = new();
@@ -319,7 +334,7 @@ public sealed class Colony
 
         void Die(int x, int y)
         {
-            Corpses.Add(new Corpse { X = x, Y = y });
+            Corpses.Add(new Corpse { X = x, Y = y, DiedAtTick = TickCount });
             Stats.Deaths++;
         }
         for (int i = Minims.Count - 1; i >= 0; i--)
@@ -402,14 +417,63 @@ public sealed class Colony
     public (int X, int Y)? BurialSite =>
         GetRoom(RoomType.Graveyard) is { Excavated: true } g ? g.FloorSite(Grid) : null;
 
-    /// <summary>A carried corpse is laid to rest: dropped as a Remains
-    /// particle (settles under normal physics) and counted. Used both for
-    /// real graveyard burials and for the emergency lay-down safety net.</summary>
+    /// <summary>Phase 21: settled Remains cells with their burial tick —
+    /// drives remains decay. Entries whose cell was displaced by physics
+    /// are simply dropped from the ledger (the material stays conserved
+    /// as an ordinary cell; only ledger-tracked cells decay).</summary>
+    private readonly List<(int X, int Y, int Tick)> _remainsLedger = new();
+
+    /// <summary>A carried corpse is laid to rest: the Remains cell is
+    /// placed directly at the nearest resting spot below the lay-down
+    /// point (position KNOWN, so decay can track it — a falling particle
+    /// has no knowable final position at drop time). Used both for real
+    /// graveyard burials and for the emergency lay-down safety net.</summary>
     public void BuryRemains(int x, int y, bool emergency = false)
     {
-        Sim.Drop(x, y, CellMaterial.Remains);
+        // Slide down to the resting cell: the deepest air cell in this
+        // column below the lay-down point (stops above solid).
+        int ry = y;
+        while (ry + 1 < Grid.Height && Grid.IsAir(x, ry + 1)) ry++;
+        if (Grid.IsAir(x, ry))
+        {
+            Grid[x, ry] = CellMaterial.Remains;
+            _remainsLedger.Add((x, ry, TickCount));
+        }
+        // (If even the lay-down cell is not air — vanishingly rare — the
+        // burial still counts; there is simply no cell to place.)
         Stats.Burials++;
         if (emergency) Stats.EmergencyBurials++;
+    }
+
+    /// <summary>Phase 21: timed decay for corpses and settled remains —
+    /// the deliberate conservation exception (see ColonyStats). O(list),
+    /// and both lists stay small (bounded by decay itself).</summary>
+    private void DecayDeadMatter()
+    {
+        if (Config.RemainsDecayTicks <= 0) return; // decay disabled
+        int cutoff = TickCount - Config.RemainsDecayTicks;
+        for (int i = Corpses.Count - 1; i >= 0; i--)
+        {
+            // Claimed corpses can decay too — the hauler pickup guard
+            // handles the vanished-target case; a corpse in a Soldier
+            // JAWS is no longer in this list and cannot decay mid-haul.
+            if (Corpses[i].DiedAtTick > cutoff) continue;
+            Corpses.RemoveAt(i);
+            Stats.CorpsesDecayed++;
+        }
+        for (int i = _remainsLedger.Count - 1; i >= 0; i--)
+        {
+            var (x, y, tick) = _remainsLedger[i];
+            if (tick > cutoff) continue;
+            _remainsLedger.RemoveAt(i);
+            if (Grid[x, y] == CellMaterial.Remains)
+            {
+                Grid[x, y] = CellMaterial.Air; // CellChanged wakes physics above
+                Stats.RemainsDecayed++;
+            }
+            // else: displaced by physics since burial — stays conserved as
+            // an ordinary cell somewhere; only ledger-tracked cells decay.
+        }
     }
 
     // ---- rooms & triggers ----

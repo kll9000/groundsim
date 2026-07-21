@@ -56,6 +56,17 @@ public sealed class GridRenderer
     };
     public const int QueenSizeUnits = 4;
 
+    /// <summary>Phase 21 Part C: unit-to-pixel scale for the caste circles.
+    /// Kevin found the Phase 19 sizes (1 unit = 1 full cell diameter) too
+    /// large; halved per his request. Ratios between castes are untouched —
+    /// this scales all circles together.</summary>
+    public const double CasteCircleScale = 0.5;
+
+    /// <summary>The on-bitmap pixel diameter for a circle of the given unit
+    /// size — single source of truth for drawing and the size test.</summary>
+    public static int CirclePixelDiameter(int units) =>
+        Math.Max(1, (int)Math.Round(units * CellSize * CasteCircleScale));
+
     /// <summary>Phase 19: relative size (in the same dirt-cell units) for a
     /// legend entry, or null for non-caste entries (which keep the square
     /// swatch). Keyed by legend label so the legend stays single-source.</summary>
@@ -202,7 +213,7 @@ public sealed class GridRenderer
     /// footprint marks in MainWindow/App).</summary>
     private void DrawCasteCircle(int cellX, int cellY, int units, Color c)
     {
-        int d = units * CellSize;
+        int d = CirclePixelDiameter(units); // Phase 21: halved scale
         double r = d / 2.0;
         double cx = cellX * CellSize + CellSize / 2.0;
         double cy = cellY * CellSize + CellSize / 2.0;

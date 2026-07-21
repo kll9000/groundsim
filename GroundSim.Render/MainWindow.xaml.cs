@@ -237,7 +237,7 @@ public partial class MainWindow : Window
         string followText = _follow is { } f ? $"  following {f.Label} (Esc releases)" : "";
 
         StatusText.Text =
-            $"build {BuildCommit}  PROTOTYPE (untuned constants)  stage: {_colony.CurrentStage}  " +
+            $"build {BuildCommit}  day {SimCalendar.DayNumber(_colony.TickCount):0.0}  PROTOTYPE (untuned constants)  stage: {_colony.CurrentStage}  " +
             $"Mi:{_colony.Minims.Count} G:{_colony.Gardeners.Count} F:{_colony.Foragers.Count} S:{_colony.Soldiers.Count} eggs:{_colony.Eggs.Count}  " +
             $"raw {_colony.RawMaterial:0.0}  farmed {_colony.FarmedResource:0.0}  " +
             $"garden:{RoomState(garden)} nursery:{RoomState(nursery)}  " +

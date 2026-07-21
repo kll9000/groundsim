@@ -59,7 +59,10 @@ public sealed class DigSite
         foreach (var (x, y) in _cells)
         {
             if (!grid.InBounds(x, y)) continue;
-            if (grid[x, y] == CellMaterial.Air) continue;
+            // Phase 21: Remains is inert (not diggable, see Agent.IsDiggable)
+            // so it must not count as remaining work — kept in exact lockstep
+            // with the diggers' own idle condition, as documented above.
+            if (grid[x, y] is CellMaterial.Air or CellMaterial.Remains) continue;
             if (grid.IsAir(x - 1, y) || grid.IsAir(x + 1, y)
                 || grid.IsAir(x, y - 1) || grid.IsAir(x, y + 1))
             {

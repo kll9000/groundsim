@@ -142,6 +142,18 @@ public sealed class ColonyConfig
     public int WorkerLifespanMeanTicks { get; init; } = 40_000;
     public int WorkerLifespanJitterTicks { get; init; } = 10_000;
 
+    /// <summary>Phase 21: ticks before a dead body disappears — applies
+    /// both to unburied corpses (where they fell) and to settled Remains
+    /// material (in the graveyard or from emergency lay-downs). Decay is a
+    /// DELIBERATE, DISCLOSED exception to this project's conservation
+    /// discipline: decayed matter is destroyed, tracked in
+    /// Stats.CorpsesDecayed / Stats.RemainsDecayed so the death ledger
+    /// still closes. 0 disables decay (tests). INVENTED value: 15,000
+    /// ticks = 8.3 sim-minutes (~1 min of watching at the 240 tps
+    /// default) — long enough that burials visibly accumulate, short
+    /// enough that nothing grows without bound.</summary>
+    public int RemainsDecayTicks { get; init; } = 15_000;
+
     /// <summary>Max idle Foragers assigned to assist room excavation.
     /// STILL INVENTED — game.js has no analog (its maxGatherers: 4 caps
     /// concurrent gatherers, a different concept; rooms there are carved

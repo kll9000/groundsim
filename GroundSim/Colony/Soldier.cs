@@ -135,11 +135,16 @@ public sealed class Soldier
         (X, Y) = (_burialWalker.X, _burialWalker.Y);
         if (atCorpse)
         {
-            colony.Corpses.Remove(_corpseTarget);
-            CarryingCorpse = true;
+            // Phase 21: the corpse may have DECAYED while we walked — only
+            // pick up what is genuinely still there, or the ledger would
+            // count a phantom burial on top of the decay.
+            if (colony.Corpses.Remove(_corpseTarget))
+            {
+                CarryingCorpse = true;
+                _burialWalker = new PathWalker(X, Y);
+                _burialLegTicks = 0;
+            }
             _corpseTarget = null;
-            _burialWalker = new PathWalker(X, Y);
-            _burialLegTicks = 0;
         }
         else if (++_burialLegTicks > BurialLegBudgetTicks)
         {
