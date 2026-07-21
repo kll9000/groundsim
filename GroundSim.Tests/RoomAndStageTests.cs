@@ -72,7 +72,15 @@ public class RoomTests
     public void RoomExcavation_CompletesViaCommunalDiggers_AndClearsSite()
     {
         var (grid, sim) = ColonyTestWorld.Create();
-        var config = new ColonyConfig { EggSurvivalChance = 0, EggLayIntervalTicks = 1_000_000 };
+        // Phase 18: death disabled — this test pins excavation mechanics
+        // with a fixed two-worker crew whose 64k window exceeds the natural
+        // lifespan; mortality has its own dedicated tests.
+        var config = new ColonyConfig
+        {
+            EggSurvivalChance = 0,
+            EggLayIntervalTicks = 1_000_000,
+            WorkerLifespanMeanTicks = 0,
+        };
         var colony = ColonyTestWorld.Founded(grid, sim, config);
         colony.Spawn(Caste.Forager, colony.HomeCenter.X, colony.HomeCenter.Y);
         colony.Spawn(Caste.Major, colony.HomeCenter.X + 1, colony.HomeCenter.Y);

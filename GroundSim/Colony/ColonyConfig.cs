@@ -115,6 +115,27 @@ public sealed class ColonyConfig
     /// threshold ported 1:1.</summary>
     public double NurseryBroodPressureThreshold { get; init; } = 4_200;
 
+    /// <summary>Phase 18 Part B (new outline): cumulative raw material
+    /// gathered by Foragers at which the Food-storage room triggers — the
+    /// room appears once a real foraging economy exists, in the same
+    /// trigger spirit as Garden/Nursery. INVENTED value (the outline gives
+    /// no numbers; game.js never had this room).</summary>
+    public double FoodStorageTriggerThreshold { get; init; } = 60;
+
+    /// <summary>Phase 18 Part C (new outline): mean worker lifespan in
+    /// ticks, with uniform ±jitter per individual. 0 or negative DISABLES
+    /// death entirely (used by tests that pin fixed-workforce mechanics —
+    /// excavation tests spawn exactly two workers and must not lose them
+    /// mid-dig). INVENTED values: 40,000 ± 10,000 ticks ≈ 22 ± 5.5 sim-
+    /// minutes at 30 tps — long enough that no fixed-workforce behavior
+    /// test window (≤12k ticks) ever sees a natural death, short enough
+    /// that long e2e/smoke runs exercise real population turnover
+    /// (equilibrium ≈ lifespan / ~550 ticks-per-surviving-birth ≈ 70
+    /// workers). The Queen is EXEMPT — her death/succession is explicitly
+    /// deferred scope.</summary>
+    public int WorkerLifespanMeanTicks { get; init; } = 40_000;
+    public int WorkerLifespanJitterTicks { get; init; } = 10_000;
+
     /// <summary>Max idle Foragers assigned to assist room excavation.
     /// STILL INVENTED — game.js has no analog (its maxGatherers: 4 caps
     /// concurrent gatherers, a different concept; rooms there are carved

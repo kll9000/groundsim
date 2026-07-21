@@ -1,6 +1,9 @@
 namespace GroundSim;
 
-public enum RoomType { Home, Garden, Nursery } // Waste/Pupa deferred per Phase 5 decision
+// Phase 18 Part B (new outline): FoodStorage (foragers deposit, gardeners
+// withdraw) and Graveyard (the dead are hauled here). Waste/Pupa still
+// deferred per the Phase 5 decision, unaffected by the outline swap.
+public enum RoomType { Home, Garden, Nursery, FoodStorage, Graveyard }
 
 /// <summary>
 /// A first-class labeled room. Phase 11: a room is a SET OF CELLS (organic

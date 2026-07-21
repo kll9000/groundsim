@@ -52,4 +52,17 @@ public sealed class DigAssist
         y = _agent.Y;
         return true;
     }
+
+    /// <summary>Phase 18 Part C: owner died mid-assist. Release any claimed
+    /// dig cell (a leaked claim permanently seals that cell — the Phase 4
+    /// claim-leak bug class) and drop carried spoil as a real particle at
+    /// the death spot so dig-material conservation holds.</summary>
+    public void AbandonOnDeath(Colony colony, int x, int y)
+    {
+        if (_agent is null) return;
+        if (_agent.Carried is { } material) colony.Sim.Drop(x, y, material);
+        _agent.ReleaseClaims();
+        _agent = null;
+        _site = null;
+    }
 }

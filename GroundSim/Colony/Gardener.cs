@@ -18,21 +18,48 @@ public sealed class Gardener
     public int X => _walker.X;
     public int Y => _walker.Y;
 
+    /// <summary>Phase 18 Part C: tick at which this worker dies of old age
+    /// (int.MaxValue = death disabled). Assigned by Colony.Spawn.</summary>
+    public int DiesAtTick { get; init; } = int.MaxValue;
+
+    /// <summary>Phase 18 Part B: true while holding one withdrawn-but-not-
+    /// yet-processed raw unit (the storage→garden leg). Conservation: on
+    /// death this unit returns to the colony pool.</summary>
+    public bool CarryingRaw { get; private set; }
+
     public Gardener(int x, int y) => _walker = new PathWalker(x, y);
 
     public void Tick(Colony colony, Grid grid)
     {
-        if (colony.RawMaterial < 1)
+        // Phase 18 Part B: once the Food-storage room is active the flow is
+        // spatial — walk to storage, withdraw one unit, carry it to the
+        // processing site, process it there. Before that: the original
+        // process-directly-at-site flow.
+        if (colony.FoodStorageActive && !CarryingRaw)
+        {
+            _processProgress = 0;
+            if (colony.RawMaterial < 1) return;
+            if (_walker.MoveTowards(grid, colony.RawDepositSite))
+            {
+                colony.RawMaterial -= 1;
+                CarryingRaw = true;
+            }
+            return;
+        }
+
+        if (!colony.FoodStorageActive && colony.RawMaterial < 1)
         {
             _processProgress = 0;
             return;
         }
+
         if (_walker.MoveTowards(grid, colony.ProcessingSite))
         {
             if (++_processProgress >= colony.Config.ProcessTicks)
             {
                 _processProgress = 0;
-                colony.RawMaterial -= 1;
+                if (CarryingRaw) CarryingRaw = false;
+                else colony.RawMaterial -= 1;
                 colony.FarmedResource += 1;
                 colony.Stats.RawProcessedByGardeners += 1;
                 if (colony.GetRoom(RoomType.Garden) is { Excavated: true } garden

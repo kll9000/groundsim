@@ -17,6 +17,16 @@ public sealed class Forager
     public int Y => _walker.Y;
     public double Carrying { get; private set; }
 
+    /// <summary>Phase 18 Part C: tick at which this worker dies of old age
+    /// (int.MaxValue = death disabled). Assigned by Colony.Spawn.</summary>
+    public int DiesAtTick { get; init; } = int.MaxValue;
+
+    /// <summary>Phase 18 Part C: called by the colony when this worker dies —
+    /// releases any dig-assist claim (a leaked claim would permanently seal
+    /// its cell, the Phase 4 claim-leak class) and drops carried dig spoil
+    /// as a real particle (conservation).</summary>
+    public void OnDeath(Colony colony) => _dig.AbandonOnDeath(colony, X, Y);
+
     /// <summary>Set by Colony.AssignDiggers: this Forager is temporarily on
     /// communal room-excavation duty (gathering resumes when the site is
     /// done). Digging is communal work, not another caste's job — the
@@ -39,7 +49,9 @@ public sealed class Forager
 
         if (Carrying > 0)
         {
-            if (_walker.MoveTowards(grid, colony.HomeCenter))
+            // Phase 18 Part B: deposits go to the Food-storage room once it
+            // exists (RawDepositSite = Home center until then).
+            if (_walker.MoveTowards(grid, colony.RawDepositSite))
             {
                 colony.RawMaterial += Carrying;
                 colony.Stats.RawGatheredByForagers += Carrying;

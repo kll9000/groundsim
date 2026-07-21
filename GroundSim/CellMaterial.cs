@@ -23,4 +23,12 @@ public enum CellMaterial : byte
     /// diagonally, so stick drops stack rather than forming sloped piles.
     /// </summary>
     Stick,
+
+    /// <summary>
+    /// Phase 18 Part C: a dead worker's remains, buried in the Graveyard.
+    /// Physically behaves like a stick (falls straight, never slides), so
+    /// buried remains stack where they're laid instead of rolling around
+    /// the graveyard.
+    /// </summary>
+    Remains,
 }

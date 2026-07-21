@@ -102,8 +102,10 @@ public sealed class Simulation
                 continue;
             }
 
-            if (p.Material == CellMaterial.Stick)
+            if (p.Material is CellMaterial.Stick or CellMaterial.Remains)
             {
+                // Sticks and remains (Phase 18) never slide — they settle
+                // where they land, so both stack rather than forming slopes.
                 Settle(i, p);
                 continue;
             }

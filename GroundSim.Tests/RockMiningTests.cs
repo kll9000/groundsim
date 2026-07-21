@@ -58,7 +58,13 @@ public class RockMiningTests
         // Phase 13 completion semantics: an excavated site is genuinely
         // clear — rock included.
         var (grid, sim) = ColonyTestWorld.Create();
-        var config = new ColonyConfig { EggSurvivalChance = 0, EggLayIntervalTicks = 1_000_000 };
+        // Phase 18: death disabled — fixed two-worker crew, 200k window.
+        var config = new ColonyConfig
+        {
+            EggSurvivalChance = 0,
+            EggLayIntervalTicks = 1_000_000,
+            WorkerLifespanMeanTicks = 0,
+        };
         var colony = ColonyTestWorld.Founded(grid, sim, config);
         colony.Spawn(Caste.Forager, colony.HomeCenter.X, colony.HomeCenter.Y);
         colony.Spawn(Caste.Major, colony.HomeCenter.X + 1, colony.HomeCenter.Y);

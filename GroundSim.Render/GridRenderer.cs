@@ -45,6 +45,10 @@ public sealed class GridRenderer
     private static readonly Color HomeTint = Color.FromRgb(44, 40, 56);
     private static readonly Color GardenTint = Color.FromRgb(32, 54, 40);
     private static readonly Color NurseryTint = Color.FromRgb(56, 46, 32);
+    // Phase 18 Part B: new rooms — olive for leaf storage, muted mauve for
+    // the graveyard.
+    private static readonly Color FoodStorageTint = Color.FromRgb(60, 58, 24);
+    private static readonly Color GraveyardTint = Color.FromRgb(58, 42, 50);
 
     /// <summary>Phase 16: the material palette, exposed so the legend (and
     /// tests) read the SAME constants the renderer draws with — the legend
@@ -69,9 +73,12 @@ public sealed class GridRenderer
         ("Forager", ForagerColor),
         ("Major", MajorColor),
         ("Egg", EggColor),
+        ("Remains", MaterialColor(CellMaterial.Remains)),
         ("Home room", HomeTint),
         ("Garden room", GardenTint),
         ("Nursery room", NurseryTint),
+        ("Food-storage room", FoodStorageTint),
+        ("Graveyard room", GraveyardTint),
     };
 
     private static Color MaterialColor(CellMaterial m) => m switch
@@ -83,6 +90,7 @@ public sealed class GridRenderer
         CellMaterial.Fungus => Color.FromRgb(154, 96, 176),
         CellMaterial.LooseRock => Color.FromRgb(150, 152, 158),
         CellMaterial.Stick => Color.FromRgb(186, 148, 92),
+        CellMaterial.Remains => Color.FromRgb(214, 208, 186), // Phase 18: bone
         _ => Colors.Magenta,
     };
 
@@ -121,6 +129,7 @@ public sealed class GridRenderer
         {
             DrawDot(egg.X, egg.Y, EggColor);
         }
+        foreach (var c in colony.Corpses) DrawDot(c.X, c.Y, MaterialColor(CellMaterial.Remains));
         foreach (var m in colony.Minims) DrawCell(m.X, m.Y, MinimColor);
         foreach (var g in colony.Gardeners) DrawCell(g.X, g.Y, GardenerColor);
         foreach (var f in colony.Foragers) DrawCell(f.X, f.Y, ForagerColor);
@@ -143,6 +152,8 @@ public sealed class GridRenderer
                     RoomType.Home => HomeTint,
                     RoomType.Garden => GardenTint,
                     RoomType.Nursery => NurseryTint,
+                    RoomType.FoodStorage => FoodStorageTint,
+                    RoomType.Graveyard => GraveyardTint,
                     _ => AirColor,
                 };
             }

@@ -19,6 +19,10 @@ public sealed class Minim
     public int X => _walker.X;
     public int Y => _walker.Y;
 
+    /// <summary>Phase 18 Part C: tick at which this worker dies of old age
+    /// (int.MaxValue = death disabled). Assigned by Colony.Spawn.</summary>
+    public int DiesAtTick { get; init; } = int.MaxValue;
+
     public Minim(int x, int y) => _walker = new PathWalker(x, y);
 
     public void Tick(Colony colony, Grid grid)

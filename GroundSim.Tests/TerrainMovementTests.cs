@@ -256,6 +256,10 @@ public class ResourceSustainTests
             EggLayIntervalTicks = 1_000_000,
             GardenTriggerThreshold = double.MaxValue,
             NurseryBroodPressureThreshold = double.MaxValue,
+            // Phase 18: the Food-storage trigger would draft the foragers
+            // into excavation exactly like the room triggers this test
+            // already disables, and for the same documented reason.
+            FoodStorageTriggerThreshold = double.MaxValue,
             NodeRegenPerTick = 0.05,
         });
         colony.Nodes.Add(new ResourceNode(60, 59, 25)); // Phase 15: ×GridScale, on the new surface

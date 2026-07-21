@@ -165,6 +165,7 @@ public partial class MainWindow : Window
     {
         _dirty.MarkParticles(_sim);
         _dirty.Mark(_colony.Queen.X, _colony.Queen.Y);
+        foreach (var c in _colony.Corpses) _dirty.Mark(c.X, c.Y);
         foreach (var m in _colony.Minims) _dirty.Mark(m.X, m.Y);
         foreach (var g in _colony.Gardeners) _dirty.Mark(g.X, g.Y);
         foreach (var f in _colony.Foragers) _dirty.Mark(f.X, f.Y);

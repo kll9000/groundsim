@@ -34,6 +34,7 @@ public partial class App : Application
         {
             dirty.MarkParticles(sim);
             dirty.Mark(colony.Queen.X, colony.Queen.Y);
+            foreach (var c in colony.Corpses) dirty.Mark(c.X, c.Y);
             foreach (var m in colony.Minims) dirty.Mark(m.X, m.Y);
             foreach (var g in colony.Gardeners) dirty.Mark(g.X, g.Y);
             foreach (var f in colony.Foragers) dirty.Mark(f.X, f.Y);
@@ -66,6 +67,7 @@ public partial class App : Application
             $"colony smoke ok: {ticks} ticks in {sw.ElapsedMilliseconds} ms " +
             $"({sw.Elapsed.TotalMilliseconds / ticks:0.000} ms/tick), stage {colony.CurrentStage}, " +
             $"workers Mi:{colony.Minims.Count} G:{colony.Gardeners.Count} F:{colony.Foragers.Count} M:{colony.Majors.Count}, " +
+            $"deaths {colony.Stats.Deaths} burials {colony.Stats.Burials} (emerg {colony.Stats.EmergencyBurials}), " +
             $"milestones: home={m.HomeFoundedTick} worker={m.FirstWorkerTick} " +
             $"gardenDone={m.GardenExcavatedTick} nurseryDone={m.NurseryExcavatedTick}, " +
             $"max dirty cells/frame {maxDirty} ({100.0 * maxDirty / totalCells:0.00}% of grid)");

@@ -25,6 +25,26 @@ public sealed class ColonyStats
     /// instant (Phase 12.5 accounting — burial fallback must never be a
     /// silent permanent state).</summary>
     public long ProcessingFellBackToHome { get; set; }
+
+    // ---- Phase 18 Part C: death/burial accounting. Conservation invariant
+    // (tested): Deaths == Corpses-in-world + corpses-in-jaws + Burials. ----
+
+    /// <summary>Workers that have died (Queen exempt).</summary>
+    public int Deaths { get; set; }
+
+    /// <summary>Corpses laid to rest as Remains material (includes
+    /// emergency lay-downs, counted separately below).</summary>
+    public int Burials { get; set; }
+
+    /// <summary>Of the burials, how many were the emergency safety net
+    /// (hauler couldn't reach the Graveyard within its attempt budget and
+    /// laid the corpse down where it stood — the Phase 9 emergency-dump
+    /// pattern, so a blocked route can never deadlock a hauler).</summary>
+    public int EmergencyBurials { get; set; }
+
+    /// <summary>Raw material in a Forager's jaws at her death — accounted
+    /// (not silently lost) so gather-pipeline audits can close their books.</summary>
+    public double RawLostToDeaths { get; set; }
 }
 
 /// <summary>Tick numbers at which colony-stage milestones occurred (null = not yet).</summary>
@@ -141,6 +161,18 @@ public sealed class Colony
     /// Garden excavates; OnRoomExcavated repoints it at the Garden.</summary>
     public Func<Colony, (int X, int Y)> ProcessingSiteProvider { get; set; } = c => c.HomeCenter;
     public (int X, int Y) ProcessingSite => ProcessingSiteProvider(this);
+
+    /// <summary>Phase 18 Part B: where Foragers deposit raw material and
+    /// Gardeners withdraw it. Home Room center until the Food-storage room
+    /// excavates; OnRoomExcavated repoints it (with the same live-floor +
+    /// Home-fallback resilience as the processing site).</summary>
+    public Func<Colony, (int X, int Y)> RawDepositSiteProvider { get; set; } = c => c.HomeCenter;
+    public (int X, int Y) RawDepositSite => RawDepositSiteProvider(this);
+
+    /// <summary>True once the Food-storage room exists and is excavated —
+    /// the flag that switches Forager deposit and Gardener withdrawal from
+    /// the abstract at-home flow to the spatial storage-room flow.</summary>
+    public bool FoodStorageActive => GetRoom(RoomType.FoodStorage) is { Excavated: true };
 
     /// <summary>Derived, read-only stage indicator (added in Phase 8 for the
     /// status display — no behavior reads it). Stage boundaries follow the
@@ -261,6 +293,100 @@ public sealed class Colony
             var outcome = RollOffspring();
             if (outcome.Survived) Spawn(outcome.Caste, egg.X, egg.Y);
         }
+
+        ReapDeadWorkers();
+    }
+
+    // ---- Phase 18 Part C: worker death (the Queen is EXEMPT — her death
+    // and the outline's succession detail are explicitly deferred scope) ----
+
+    /// <summary>Unburied dead workers: where each fell, plus a retry gate so
+    /// an unreachable corpse is periodically re-attempted instead of either
+    /// stalling a hauler forever or being silently forgotten.</summary>
+    public sealed class Corpse
+    {
+        public int X { get; init; }
+        public int Y { get; init; }
+        public int NextAttemptTick { get; set; }
+        public bool Claimed { get; set; }
+    }
+
+    public List<Corpse> Corpses { get; } = new();
+
+    private void ReapDeadWorkers()
+    {
+        if (Config.WorkerLifespanMeanTicks <= 0) return; // death disabled
+
+        void Die(int x, int y)
+        {
+            Corpses.Add(new Corpse { X = x, Y = y });
+            Stats.Deaths++;
+        }
+        for (int i = Minims.Count - 1; i >= 0; i--)
+        {
+            if (TickCount < Minims[i].DiesAtTick) continue;
+            Die(Minims[i].X, Minims[i].Y);
+            Minims.RemoveAt(i);
+        }
+        for (int i = Gardeners.Count - 1; i >= 0; i--)
+        {
+            if (TickCount < Gardeners[i].DiesAtTick) continue;
+            var g = Gardeners[i];
+            // Conservation: a withdrawn-but-unprocessed raw unit goes back
+            // to the colony pool rather than vanishing.
+            if (g.CarryingRaw) RawMaterial += 1;
+            Die(g.X, g.Y);
+            Gardeners.RemoveAt(i);
+        }
+        for (int i = Foragers.Count - 1; i >= 0; i--)
+        {
+            if (TickCount < Foragers[i].DiesAtTick) continue;
+            var f = Foragers[i];
+            // Carried raw dies with her (leaves are dropped where she fell,
+            // abstractly) — tracked, not silently lost.
+            Stats.RawLostToDeaths += f.Carrying;
+            f.OnDeath(this);
+            Die(f.X, f.Y);
+            Foragers.RemoveAt(i);
+        }
+        for (int i = Majors.Count - 1; i >= 0; i--)
+        {
+            if (TickCount < Majors[i].DiesAtTick) continue;
+            Majors[i].OnDeath(this);
+            Die(Majors[i].X, Majors[i].Y);
+            Majors.RemoveAt(i);
+        }
+    }
+
+    /// <summary>Claims the nearest unclaimed, retry-eligible corpse for a
+    /// hauler (one hauler per corpse — same claim discipline as dig cells).</summary>
+    public Corpse? ClaimNearestCorpse(int x, int y)
+    {
+        Corpse? best = null;
+        int bestDist = int.MaxValue;
+        foreach (var c in Corpses)
+        {
+            if (c.Claimed || TickCount < c.NextAttemptTick) continue;
+            int d = Math.Abs(c.X - x) + Math.Abs(c.Y - y);
+            if (d < bestDist) { bestDist = d; best = c; }
+        }
+        if (best is not null) best.Claimed = true;
+        return best;
+    }
+
+    /// <summary>The Graveyard's live burial spot (its floor site), or null
+    /// until the room is excavated.</summary>
+    public (int X, int Y)? BurialSite =>
+        GetRoom(RoomType.Graveyard) is { Excavated: true } g ? g.FloorSite(Grid) : null;
+
+    /// <summary>A carried corpse is laid to rest: dropped as a Remains
+    /// particle (settles under normal physics) and counted. Used both for
+    /// real graveyard burials and for the emergency lay-down safety net.</summary>
+    public void BuryRemains(int x, int y, bool emergency = false)
+    {
+        Sim.Drop(x, y, CellMaterial.Remains);
+        Stats.Burials++;
+        if (emergency) Stats.EmergencyBurials++;
     }
 
     // ---- rooms & triggers ----
@@ -290,6 +416,19 @@ public sealed class Colony
         {
             AddPlannedRoom(RoomType.Nursery);
             Milestones.NurseryTriggeredTick ??= TickCount;
+        }
+
+        // Phase 18 Part B: Food-storage triggers once a real foraging
+        // economy exists; the Graveyard triggers on the first death (a
+        // corpse needs somewhere to go).
+        if (GetRoom(RoomType.FoodStorage) is null
+            && Stats.RawGatheredByForagers >= Config.FoodStorageTriggerThreshold)
+        {
+            AddPlannedRoom(RoomType.FoodStorage);
+        }
+        if (GetRoom(RoomType.Graveyard) is null && Stats.Deaths >= 1)
+        {
+            AddPlannedRoom(RoomType.Graveyard);
         }
     }
 
@@ -381,6 +520,18 @@ public sealed class Colony
             case RoomType.Nursery:
                 Milestones.NurseryExcavatedTick ??= TickCount;
                 break;
+            case RoomType.FoodStorage:
+                // Phase 18 Part B: the resource flow becomes spatial —
+                // Foragers deposit here, Gardeners withdraw from here. Same
+                // live-floor-site + Home fallback resilience as the garden.
+                RawDepositSiteProvider = c =>
+                {
+                    var s = room.FloorSite(c.Grid);
+                    return c.Grid.IsAir(s.X, s.Y) ? s : c.HomeCenter;
+                };
+                break;
+                // Graveyard needs no site provider — BurialSite reads its
+                // live floor directly.
         }
     }
 
@@ -489,12 +640,18 @@ public sealed class Colony
     public void Spawn(Caste caste, int x, int y)
     {
         if (!Grid.IsAir(x, y)) (x, y) = HomeCenter;
+        // Phase 18 Part C: each worker gets a lifespan at birth (Queen
+        // exempt — she is not spawned through here and never dies).
+        int diesAt = Config.WorkerLifespanMeanTicks <= 0
+            ? int.MaxValue
+            : TickCount + Config.WorkerLifespanMeanTicks
+              + _rng.Next(-Config.WorkerLifespanJitterTicks, Config.WorkerLifespanJitterTicks + 1);
         switch (caste)
         {
-            case Caste.Minim: Minims.Add(new Minim(x, y)); break;
-            case Caste.Gardener: Gardeners.Add(new Gardener(x, y)); break;
-            case Caste.Forager: Foragers.Add(new Forager(x, y)); break;
-            case Caste.Major: Majors.Add(new Major(x, y)); break;
+            case Caste.Minim: Minims.Add(new Minim(x, y) { DiesAtTick = diesAt }); break;
+            case Caste.Gardener: Gardeners.Add(new Gardener(x, y) { DiesAtTick = diesAt }); break;
+            case Caste.Forager: Foragers.Add(new Forager(x, y) { DiesAtTick = diesAt }); break;
+            case Caste.Major: Majors.Add(new Major(x, y) { DiesAtTick = diesAt }); break;
         }
         Milestones.FirstWorkerTick ??= TickCount;
     }
