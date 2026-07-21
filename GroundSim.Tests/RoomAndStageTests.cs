@@ -214,27 +214,34 @@ public class EndToEndStageTests
             int t = 0;
             var m = colony.Milestones;
             int gardenSamples = 0, gardenUnusableSamples = 0; // Phase 12.5 accounting
+            // Phase 20.5 item 2: derived from config, not a baked literal —
+            // the sky band is anything above the highest legitimate mound
+            // top (groundLevel − MoundMaxHeight − margin), so it tracks
+            // MoundMaxHeight retunes automatically.
+            int skyBandY = 60 - colony.Config.MoundMaxHeight - 5;
+            void SkyBandSweep()
+            {
+                // Phase 20 regression net: no worker may ever be in the sky
+                // band above any legitimate mound top — where the
+                // border-climbing bug lived.
+                foreach (var (wx, wy) in colony.Minims.Select(w => (w.X, w.Y))
+                             .Concat(colony.Gardeners.Select(w => (w.X, w.Y)))
+                             .Concat(colony.Foragers.Select(w => (w.X, w.Y)))
+                             .Concat(colony.Soldiers.Select(w => (w.X, w.Y))))
+                {
+                    Assert.True(wy >= skyBandY,
+                        $"seed {seed} t={t}: worker at ({wx},{wy}) is in the sky — border-climb regression");
+                }
+            }
             while (t < maxTicks &&
                    (m.NurseryExcavatedTick is null || m.GardenExcavatedTick is null))
             {
                 colony.Tick();
                 sim.Tick();
                 t++;
-                // Phase 20 regression net: no worker may ever be in the sky
-                // band above any legitimate mound top (groundLevel 60 −
-                // MoundMaxHeight 20 − margin 5 = y < 35). This is where the
-                // border-climbing bug lived; sampled every 200 ticks across
-                // all 10 seeds of the full colony lifecycle.
                 if (t % 200 == 0)
                 {
-                    foreach (var (wx, wy) in colony.Minims.Select(w => (w.X, w.Y))
-                                 .Concat(colony.Gardeners.Select(w => (w.X, w.Y)))
-                                 .Concat(colony.Foragers.Select(w => (w.X, w.Y)))
-                                 .Concat(colony.Soldiers.Select(w => (w.X, w.Y))))
-                    {
-                        Assert.True(wy >= 35,
-                            $"seed {seed} t={t}: worker at ({wx},{wy}) is in the sky — border-climb regression");
-                    }
+                    SkyBandSweep();
                 }
                 if (t % 200 == 0 && colony.GetRoom(RoomType.Garden) is { Excavated: true } gs)
                 {
@@ -280,6 +287,30 @@ public class EndToEndStageTests
             firstWorker.Add(m.FirstWorkerTick!.Value);
             gardenDone.Add(m.GardenExcavatedTick!.Value);
             nurseryDone.Add(m.NurseryExcavatedTick!.Value);
+
+            // Phase 20.5 item 1: the sweep gets its own FIXED maturity
+            // window, decoupled from milestone completion. The border-climb
+            // bug was a colony-MATURITY phenomenon (app-world onset
+            // t≈110k); the milestone loop above exits whenever rooms happen
+            // to finish, so its coverage of the maturity window was a
+            // coincidence of current pacing. Budget: every seed now runs to
+            // a fixed 150k ticks — 1.36× the app-world onset tick in this
+            // smaller, faster-paced world, guaranteeing tens of thousands
+            // of mature-colony ticks (population turnover, burials, full
+            // room set) are swept regardless of how future phases shift
+            // room-completion pacing.
+            const int MaturitySweepUntil = 150_000;
+            while (t < MaturitySweepUntil)
+            {
+                colony.Tick();
+                sim.Tick();
+                t++;
+                if (t % 200 == 0)
+                {
+                    SkyBandSweep();
+                }
+            }
+
         }
 
         static int Median(List<int> xs)

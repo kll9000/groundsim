@@ -33,15 +33,22 @@ public static class Terrain
     }
 
     /// <summary>
-    /// INDEPENDENT DIAGNOSTIC ORACLE (Phase 9.5) — deliberately NOT used by
-    /// any movement logic, and deliberately not sharing IsSupported's
-    /// reasoning: an agent is "visibly floating" if its cell is Air and there
-    /// is no solid cell anywhere in its 3×3 neighborhood — nothing to stand
-    /// on, cling to, or hang from, including a ceiling directly overhead.
-    /// Exists so floating audits can catch IsSupported being WRONG (e.g. its
-    /// enclosed/roof rule classifying a cell as supported because of solid
-    /// material rows overhead with nothing touching the agent), instead of
-    /// only confirming the production rule agrees with itself.
+    /// LOCKSTEP PIN, NOT an independent correctness check — read this
+    /// honestly (Phase 20.5 correction). This predicate began life as the
+    /// Phase 9.5 "independent diagnostic oracle," but that independence has
+    /// been disproven in practice TWICE: Phase 11's unification made it the
+    /// exact logical complement of IsSupported (proven over 16k+ cells,
+    /// zero divergence — the agreement tests became tautological), and
+    /// Phase 20 found both predicates had carried the identical
+    /// out-of-bounds-is-a-wall convention since birth, so every floating
+    /// audit signed off on ants climbing the world border. What this
+    /// actually provides today: a regression PIN that IsSupported's contact
+    /// semantics haven't drifted (see SupportRulePinTests' own framing —
+    /// the two are deliberate duplicates held in lockstep, and any future
+    /// change must update both together, as Phase 20 did). The genuinely
+    /// independent safety net is the Phase 11.5 trajectory auditor
+    /// (TrajectoryAuditTests), which judges agent BEHAVIOR over time
+    /// rather than re-deriving cell geometry.
     /// </summary>
     public static bool IsVisiblyFloating(Grid grid, int x, int y)
     {
