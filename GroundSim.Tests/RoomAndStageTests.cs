@@ -201,7 +201,15 @@ public class EndToEndStageTests
         // unchanged 1-cell-per-tick dig rate plus ×GridScale haul walks, so
         // milestones inflate ~4-6×; the budget scales with generous headroom
         // (it only bounds failure time — passing runs exit at the milestone).
-        const int maxTicks = 360_000;
+        // Phase 25: 360k → 500k, DELIBERATE. The day-scale emergence gates
+        // (Forager day 6 = tick 216k) push resource-driven milestones right
+        // by design: measured across these 10 seeds, gardenDone now lands
+        // 300,062–378,272 (median ~357k; was ~100-160k), while nurseryDone
+        // (brood-driven, caste-independent) stays ~264-287k — the nursery
+        // now completes BEFORE the garden. 500k = worst measured seed +
+        // ~32% headroom. This is the pinned-milestone update the Phase 25
+        // handoff predicted, not a loosening to hide a regression.
+        const int maxTicks = 500_000;
         var firstWorker = new List<int>();
         var gardenDone = new List<int>();
         var nurseryDone = new List<int>();

@@ -231,7 +231,13 @@ public class SurfaceMovementTests
         // sweep (28,800 cells × 60k ticks of even trivial per-cell work
         // busts it by orders of magnitude).
         var (grid, sim) = ColonyTestWorld.Create();
-        var colony = Colony.Found(grid, sim, new ColonyConfig(),
+        // Phase 25: Forager gate zeroed — this is a movement-COST test whose
+        // "did real work" guard needs gathering inside its 60k-tick window,
+        // which the day-6 emergence gate would push entirely out of frame.
+        var colony = Colony.Found(grid, sim, new ColonyConfig
+        {
+            ForagerMinEmergenceTick = 0,
+        },
             ColonyTestWorld.Chamber, startX: 112, startY: 59, seed: 6);
         colony.Nodes.Add(new ResourceNode(30, 59, 10_000));
         colony.Nodes.Add(new ResourceNode(210, 59, 10_000));

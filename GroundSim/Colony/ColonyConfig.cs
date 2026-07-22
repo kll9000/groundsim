@@ -301,6 +301,39 @@ public sealed class ColonyConfig
     public double NearTieToleranceFactor { get; init; } = 1.25;
 
     // ------------------------------------------------------------------
+    // Phase 25: day-scale caste-emergence gates. ALL FOUR ARE INVENTED,
+    // deliberately-tunable starting points for Kevin to react to (same
+    // status as RemainsDecayTicks / CasteCircleScale). Day N in the
+    // status-bar calendar = tick (N-1) × 43,200 (SimCalendar's
+    // 1-based display). Each is a SOFT gate, the same shape as
+    // SoldierUnlockPopulation: before the tick, that caste's roll falls
+    // through to the commoner castes exactly like a failed population
+    // gate; after it, the existing roll proceeds untouched, so
+    // seed-to-seed variance around each target is preserved. Set to 0
+    // to disable a gate (tests that exercise the roll mechanics
+    // unrelated to pacing do this).
+    // ------------------------------------------------------------------
+
+    /// <summary>~day 2 — nominal: first eggs don't mature until ~day 2.05
+    /// anyway (Phase 23 measurement), and Minim is the roll's ungated
+    /// fall-through floor regardless (an egg that survives must become
+    /// SOMETHING), so this constant documents the target rather than
+    /// enforcing it. INVENTED.</summary>
+    public int MinimMinEmergenceTick { get; init; } = 43_200;
+
+    /// <summary>~day 4. INVENTED.</summary>
+    public int GardenerMinEmergenceTick { get; init; } = 129_600;
+
+    /// <summary>~day 6. INVENTED. Note the knock-on: Foragers are the only
+    /// source of raw material, so every resource-driven room trigger
+    /// (Garden, Food-storage) shifts to after this day.</summary>
+    public int ForagerMinEmergenceTick { get; init; } = 216_000;
+
+    /// <summary>~day 9.5 (stretching Soldier's existing last-to-appear
+    /// margin, not inventing a new relationship). INVENTED.</summary>
+    public int SoldierMinEmergenceTick { get; init; } = 367_200;
+
+    // ------------------------------------------------------------------
     // Known tuned values for systems GroundSim does NOT have yet
     // (Phase 14, Part C). Recorded here so future phases that build these
     // systems start from Colony Builder's real numbers instead of

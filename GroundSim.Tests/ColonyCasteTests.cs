@@ -340,7 +340,16 @@ public class OffspringTests
     public void SurvivalAndCasteRolls_MatchConfiguredDistribution()
     {
         var (grid, sim) = ColonyTestWorld.Create();
-        var colony = ColonyTestWorld.Founded(grid, sim);
+        // Phase 25: emergence gates zeroed — these tests exercise the roll
+        // DISTRIBUTION / population gates at tick ~0; day-scale pacing has
+        // its own coverage and would otherwise mask every rarer caste here.
+        var colony = ColonyTestWorld.Founded(grid, sim, new ColonyConfig
+        {
+            MinimMinEmergenceTick = 0,
+            GardenerMinEmergenceTick = 0,
+            ForagerMinEmergenceTick = 0,
+            SoldierMinEmergenceTick = 0,
+        });
         // Phase 18/19: satisfy BOTH population gates up front so the full
         // four-caste distribution is exercised; each gate has its own
         // dedicated test below.
@@ -390,7 +399,16 @@ public class OffspringTests
         // Phase 19: below SoldierUnlockPopulation (real game.js value: 5)
         // no Soldier can roll — the outline's "last caste to appear".
         var (grid, sim) = ColonyTestWorld.Create();
-        var colony = ColonyTestWorld.Founded(grid, sim);
+        // Phase 25: emergence gates zeroed — these tests exercise the roll
+        // DISTRIBUTION / population gates at tick ~0; day-scale pacing has
+        // its own coverage and would otherwise mask every rarer caste here.
+        var colony = ColonyTestWorld.Founded(grid, sim, new ColonyConfig
+        {
+            MinimMinEmergenceTick = 0,
+            GardenerMinEmergenceTick = 0,
+            ForagerMinEmergenceTick = 0,
+            SoldierMinEmergenceTick = 0,
+        });
         Assert.True(colony.WorkerCount < colony.Config.SoldierUnlockPopulation);
         for (int i = 0; i < 5000; i++)
         {
@@ -419,7 +437,16 @@ public class OffspringTests
         // gate, Gardeners appear. First instance of Colony Builder's
         // population-gate mechanism (Phase 14 Part C gap #1).
         var (grid, sim) = ColonyTestWorld.Create();
-        var colony = ColonyTestWorld.Founded(grid, sim);
+        // Phase 25: emergence gates zeroed — these tests exercise the roll
+        // DISTRIBUTION / population gates at tick ~0; day-scale pacing has
+        // its own coverage and would otherwise mask every rarer caste here.
+        var colony = ColonyTestWorld.Founded(grid, sim, new ColonyConfig
+        {
+            MinimMinEmergenceTick = 0,
+            GardenerMinEmergenceTick = 0,
+            ForagerMinEmergenceTick = 0,
+            SoldierMinEmergenceTick = 0,
+        });
         Assert.True(colony.WorkerCount < colony.Config.GardenerUnlockPopulation);
 
         for (int i = 0; i < 5000; i++)

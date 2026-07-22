@@ -769,6 +769,16 @@ public sealed class Colony
     /// colony is Minim/Forager-heavy and Soldiers arrive last, exactly the
     /// outline's developmental sequence. (New Queen rolls remain deferred.)
     /// </summary>
+    /// <summary>Phase 25: each caste roll additionally requires the colony
+    /// clock to have passed that caste's MinEmergenceTick (day-scale
+    /// pacing gates — see ColonyConfig for the invented targets). SOFT
+    /// gates, same shape as the population gates they sit beside: an
+    /// ineligible roll falls through to the commoner castes; once
+    /// eligible, the roll behaves exactly as before, preserving
+    /// seed-to-seed variance. Minim remains the ungated floor — a
+    /// surviving egg must become something, and first maturation
+    /// (~day 2.05, measured) lands past Minim's nominal day-2 target
+    /// anyway, so the floor and the gate never actually conflict.</summary>
     public OffspringOutcome RollOffspring()
     {
         if (_rng.NextDouble() >= Config.EggSurvivalChance)
@@ -776,15 +786,18 @@ public sealed class Colony
             return new OffspringOutcome(false, default);
         }
         if (WorkerCount >= Config.SoldierUnlockPopulation
+            && TickCount >= Config.SoldierMinEmergenceTick
             && _rng.NextDouble() < Config.SoldierChance)
         {
             return new OffspringOutcome(true, Caste.Soldier);
         }
-        if (_rng.NextDouble() < Config.ForagerShareOfRemainder)
+        if (TickCount >= Config.ForagerMinEmergenceTick
+            && _rng.NextDouble() < Config.ForagerShareOfRemainder)
         {
             return new OffspringOutcome(true, Caste.Forager);
         }
         bool gardener = WorkerCount >= Config.GardenerUnlockPopulation
+            && TickCount >= Config.GardenerMinEmergenceTick
             && _rng.NextDouble() < Config.GardenerShareOfCaregivers;
         return new OffspringOutcome(true, gardener ? Caste.Gardener : Caste.Minim);
     }

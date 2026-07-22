@@ -148,7 +148,16 @@ public class SpoilMoundTests
     {
         var grid = Grid.CreateTestWorld(240, 120, groundLevel: 60, seed: 6);
         var sim = new Simulation(grid, seed: 6);
-        var colony = Colony.Found(grid, sim, new ColonyConfig(), entranceX: 112, seed: 6);
+        // Phase 25: emergence gates zeroed — this tests MOUND PHYSICS through
+        // founding + garden excavation; the day-scale gates would push the
+        // garden past this test's 240k budget without adding mound coverage.
+        var colony = Colony.Found(grid, sim, new ColonyConfig
+        {
+            MinimMinEmergenceTick = 0,
+            GardenerMinEmergenceTick = 0,
+            ForagerMinEmergenceTick = 0,
+            SoldierMinEmergenceTick = 0,
+        }, entranceX: 112, seed: 6);
         colony.Nodes.Add(new ResourceNode(30, 59, 10_000));
         colony.Nodes.Add(new ResourceNode(210, 59, 10_000));
 
