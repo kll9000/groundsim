@@ -398,18 +398,43 @@ public sealed class Colony
 
     /// <summary>Claims the nearest unclaimed, retry-eligible corpse for a
     /// hauler (one hauler per corpse — same claim discipline as dig cells).</summary>
+    /// <summary>Phase 24 item 3: same near-tie seeded randomization as
+    /// NearestNodeWithMaterial (see there for the rationale). Safe here
+    /// because claiming is sticky by construction — the chosen corpse is
+    /// marked Claimed, so the pick can't dither.</summary>
     public Corpse? ClaimNearestCorpse(int x, int y)
     {
-        Corpse? best = null;
         int bestDist = int.MaxValue;
         foreach (var c in Corpses)
         {
             if (c.Claimed || TickCount < c.NextAttemptTick) continue;
             int d = Math.Abs(c.X - x) + Math.Abs(c.Y - y);
-            if (d < bestDist) { bestDist = d; best = c; }
+            if (d < bestDist) bestDist = d;
         }
-        if (best is not null) best.Claimed = true;
-        return best;
+        if (bestDist == int.MaxValue) return null;
+
+        double limit = bestDist * Config.NearTieToleranceFactor;
+        int inBand = 0;
+        foreach (var c in Corpses)
+        {
+            if (c.Claimed || TickCount < c.NextAttemptTick) continue;
+            if (Math.Abs(c.X - x) + Math.Abs(c.Y - y) <= limit) inBand++;
+        }
+        // Only consume RNG when there is a genuine choice — a selector
+        // with one candidate must not perturb the seeded stream (a test
+        // with a single node/corpse should see the same downstream draws
+        // as before Phase 24).
+        int pick = inBand == 1 ? 0 : _rng.Next(inBand);
+        foreach (var c in Corpses)
+        {
+            if (c.Claimed || TickCount < c.NextAttemptTick) continue;
+            if (Math.Abs(c.X - x) + Math.Abs(c.Y - y) <= limit && pick-- == 0)
+            {
+                c.Claimed = true;
+                return c;
+            }
+        }
+        return null; // unreachable: inBand ≥ 1 whenever bestDist was found
     }
 
     /// <summary>The Graveyard's live burial spot (its floor site), or null
@@ -795,17 +820,42 @@ public sealed class Colony
         return best;
     }
 
+    /// <summary>Phase 24 item 3: near-tie candidates (within
+    /// Config.NearTieToleranceFactor × the best distance) are chosen among
+    /// with the colony's seeded RNG instead of first-in-list order — this
+    /// is what breaks the whole-workforce-flips-in-unison commute pattern.
+    /// Safe to randomize because the caller's target is STICKY (a Forager
+    /// re-queries only when its node is null or empty), so a random pick
+    /// cannot dither an in-flight trip. Same seed → same choices.</summary>
     public ResourceNode? NearestNodeWithMaterial(int x, int y)
     {
-        ResourceNode? best = null;
         int bestDist = int.MaxValue;
         foreach (var node in Nodes)
         {
             if (node.Remaining <= 0) continue;
             int d = Math.Abs(node.X - x) + Math.Abs(node.Y - y);
-            if (d < bestDist) { bestDist = d; best = node; }
+            if (d < bestDist) bestDist = d;
         }
-        return best;
+        if (bestDist == int.MaxValue) return null;
+
+        double limit = bestDist * Config.NearTieToleranceFactor;
+        int inBand = 0;
+        foreach (var node in Nodes)
+        {
+            if (node.Remaining <= 0) continue;
+            if (Math.Abs(node.X - x) + Math.Abs(node.Y - y) <= limit) inBand++;
+        }
+        // Only consume RNG when there is a genuine choice — a selector
+        // with one candidate must not perturb the seeded stream (a test
+        // with a single node/corpse should see the same downstream draws
+        // as before Phase 24).
+        int pick = inBand == 1 ? 0 : _rng.Next(inBand);
+        foreach (var node in Nodes)
+        {
+            if (node.Remaining <= 0) continue;
+            if (Math.Abs(node.X - x) + Math.Abs(node.Y - y) <= limit && pick-- == 0) return node;
+        }
+        return null; // unreachable: inBand ≥ 1 whenever bestDist was found
     }
 
 }

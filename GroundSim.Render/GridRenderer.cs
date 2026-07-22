@@ -106,6 +106,14 @@ public sealed class GridRenderer
     // same status as every other feel constant.
     private static readonly Color DaySkyColor = Color.FromRgb(58, 74, 110);
     private static readonly Color NightSkyColor = Color.FromRgb(10, 12, 20);
+
+    // Phase 24 item 2: resource nodes were invisible (Phase 23 finding —
+    // Foragers commuting to undrawn points). A diamond marker whose color
+    // fades from full leaf-green toward a dim olive as the node depletes,
+    // so a node running dry is finally something you can SEE. Full-color
+    // constant exposed via the legend; presentation-only.
+    private static readonly Color LeafNodeFullColor = Color.FromRgb(150, 240, 70);
+    private static readonly Color LeafNodeEmptyColor = Color.FromRgb(58, 66, 40);
     private static readonly Color HomeTint = Color.FromRgb(44, 40, 56);
     private static readonly Color GardenTint = Color.FromRgb(32, 54, 40);
     private static readonly Color NurseryTint = Color.FromRgb(56, 46, 32);
@@ -138,6 +146,7 @@ public sealed class GridRenderer
         ("Soldier", SoldierColor),
         ("Egg", EggColor),
         ("Remains", MaterialColor(CellMaterial.Remains)),
+        ("Leaf node", LeafNodeFullColor),
         ("Home room", HomeTint),
         ("Garden room", GardenTint),
         ("Nursery room", NurseryTint),
@@ -272,6 +281,11 @@ public sealed class GridRenderer
             DrawDot(egg.X, egg.Y, EggColor);
         }
         foreach (var c in colony.Corpses) DrawDot(c.X, c.Y, MaterialColor(CellMaterial.Remains));
+        // Phase 24: node markers draw BEFORE caste circles so ants working a
+        // node appear on top of it. Redrawn every frame like eggs/corpses —
+        // markers never move, so no ghost-trail marking is needed; terrain
+        // changes under one repaint as background first, marker on top.
+        foreach (var n in colony.Nodes) DrawNodeMarker(n);
         // Phase 19 Part C: castes render as circles sized by SizeUnits —
         // purely visual; the agent's grid cell (all gameplay logic) is the
         // circle's CENTER and is unchanged.
@@ -303,6 +317,32 @@ public sealed class GridRenderer
     /// the square-corner background stays intact (the dirty-cell system
     /// restores everything underneath next frame via the widened entity
     /// footprint marks in MainWindow/App).</summary>
+    /// <summary>Phase 24 item 2: a filled diamond centered on the node's
+    /// cell (diamond, so it can't be mistaken for a caste circle). Color
+    /// lerps from LeafNodeFullColor toward LeafNodeEmptyColor as Remaining
+    /// falls — the visual explanation for Foragers abandoning a node.</summary>
+    private void DrawNodeMarker(ResourceNode node)
+    {
+        double fullness = node.Cap > 0 ? Math.Clamp(node.Remaining / node.Cap, 0, 1) : 0;
+        var c = Color.FromRgb(
+            (byte)(LeafNodeEmptyColor.R + (LeafNodeFullColor.R - LeafNodeEmptyColor.R) * fullness),
+            (byte)(LeafNodeEmptyColor.G + (LeafNodeFullColor.G - LeafNodeEmptyColor.G) * fullness),
+            (byte)(LeafNodeEmptyColor.B + (LeafNodeFullColor.B - LeafNodeEmptyColor.B) * fullness));
+        const int r = 4; // half-height in px: a 9px-tall diamond at CellSize 2
+        int cx = node.X * CellSize + CellSize / 2;
+        int cy = node.Y * CellSize + CellSize / 2;
+        int bmpW = Bitmap.PixelWidth, bmpH = Bitmap.PixelHeight;
+        for (int dy = -r; dy <= r; dy++)
+        {
+            int py = cy + dy;
+            if (py < 0 || py >= bmpH) continue;
+            int half = r - Math.Abs(dy);
+            int x0 = Math.Max(0, cx - half);
+            int x1 = Math.Min(bmpW, cx + half + 1);
+            if (x1 - x0 > 0) WriteSpan(x0, py, x1 - x0, c);
+        }
+    }
+
     private void DrawCasteCircle(int cellX, int cellY, int units, Color c)
     {
         int d = CirclePixelDiameter(units); // Phase 21: halved scale

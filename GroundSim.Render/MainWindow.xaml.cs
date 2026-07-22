@@ -46,6 +46,18 @@ public partial class MainWindow : Window
     // zoom still reaches ~40 px per cell (2 px × 20, matching the old
     // 5 px × 8 ceiling).
     private readonly Camera _camera = new() { MaxZoom = 20 };
+    private readonly int _seed;
+
+    private static int? ParseSeedArg()
+    {
+        var args = Environment.GetCommandLineArgs();
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] == "--seed" && int.TryParse(args[i + 1], out int s)) return s;
+        }
+        return null;
+    }
+
     private (string Label, Func<(int X, int Y)> Cell)? _follow;
     private Point _dragStart;
     private Point _lastDragPoint;
@@ -67,7 +79,15 @@ public partial class MainWindow : Window
         // status line is busy) — Kevin can match it against git log.
         Title = $"GroundSim — Colony Prototype  [build {BuildCommit}]";
 
-        (_grid, _sim, _colony) = ColonyScenario.Create();
+        // Phase 24 item 1: the interactive window (and ONLY the window —
+        // ColonyScenario.Create's default-42 stays for tests and --smoke,
+        // which depend on it for reproducibility) randomizes its seed per
+        // launch, or takes --seed N to revisit a specific run. The status
+        // bar shows the seed either way. Random.Shared here is the one
+        // deliberate unseeded draw in the app: it only CHOOSES the seed;
+        // everything downstream of the chosen seed stays deterministic.
+        _seed = ParseSeedArg() ?? Random.Shared.Next(1_000_000);
+        (_grid, _sim, _colony) = ColonyScenario.Create(_seed);
         _dirty = new DirtyTracker(_grid);
         // Phase 23: sky band above the scenario's ground level gets the
         // day/night tint.
@@ -267,7 +287,7 @@ public partial class MainWindow : Window
         string followText = _follow is { } f ? $"  following {f.Label} (Esc releases)" : "";
 
         StatusText.Text =
-            $"build {BuildCommit}  day {SimCalendar.DayNumber(_colony.TickCount):0.0}  PROTOTYPE (untuned constants)  stage: {_colony.CurrentStage}  " +
+            $"build {BuildCommit}  seed {_seed}  day {SimCalendar.DayNumber(_colony.TickCount):0.0}  PROTOTYPE (untuned constants)  stage: {_colony.CurrentStage}  " +
             $"Mi:{_colony.Minims.Count} G:{_colony.Gardeners.Count} F:{_colony.Foragers.Count} S:{_colony.Soldiers.Count} eggs:{_colony.Eggs.Count}  " +
             $"raw {_colony.RawMaterial:0.0}  farmed {_colony.FarmedResource:0.0}  " +
             $"garden:{RoomState(garden)} nursery:{RoomState(nursery)}  " +

@@ -289,6 +289,17 @@ public sealed class ColonyConfig
     public double HaulSize(double distanceFromHome)
         => Math.Max(GatherChunkMin, GatherChunkBase - GatherDistanceFalloff * distanceFromHome);
 
+    /// <summary>Phase 24 item 3: candidates whose distance is within this
+    /// factor of the true nearest count as "tied" and are chosen among
+    /// with the colony's seeded RNG (exact-equality ties essentially never
+    /// occur on a Manhattan grid, so strict-tie-only randomness would have
+    /// changed nothing — the live scenario's two nodes sit at 132 vs 148
+    /// from the nest and would still be a deterministic pick; this is the
+    /// minimal widening that makes tie-break randomness actually fire,
+    /// flagged in the Phase 24 report as a judgment call).
+    /// 1.0 restores exact-nearest-only. INVENTED constant.</summary>
+    public double NearTieToleranceFactor { get; init; } = 1.25;
+
     // ------------------------------------------------------------------
     // Known tuned values for systems GroundSim does NOT have yet
     // (Phase 14, Part C). Recorded here so future phases that build these
