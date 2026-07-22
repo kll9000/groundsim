@@ -99,6 +99,13 @@ public sealed class GridRenderer
     private static readonly Color EggColor = Color.FromRgb(240, 240, 215);
 
     private static readonly Color AirColor = Color.FromRgb(24, 26, 34);
+
+    // Phase 23 item 5: day/night sky tint. Only ABOVE-GROUND air (the sky
+    // band, y < SkyGroundLevel) shifts; underground tunnel air stays the
+    // constant AirColor, and room tints are untouched. INVENTED palette,
+    // same status as every other feel constant.
+    private static readonly Color DaySkyColor = Color.FromRgb(58, 74, 110);
+    private static readonly Color NightSkyColor = Color.FromRgb(10, 12, 20);
     private static readonly Color HomeTint = Color.FromRgb(44, 40, 56);
     private static readonly Color GardenTint = Color.FromRgb(32, 54, 40);
     private static readonly Color NurseryTint = Color.FromRgb(56, 46, 32);
@@ -151,14 +158,62 @@ public sealed class GridRenderer
         _ => Colors.Magenta,
     };
 
-    public GridRenderer(Grid grid)
+    // Phase 23 item 5: rows above this y are "sky" and get the day/night
+    // tint; everything at/below keeps constant colors. Null disables the
+    // whole feature (renderer behaves exactly as before Phase 23).
+    private readonly int? _skyGroundLevel;
+    private Color _skyColor;
+    private int _skyStep = -1;
+
+    /// <summary>Number of discrete sky-tint levels per day. Each step change
+    /// repaints the sky band once (~900 ticks apart at 48 steps/day) —
+    /// smooth to the eye, negligible cost.</summary>
+    public const int SkySteps = 48;
+
+    public GridRenderer(Grid grid, int? skyGroundLevel = null)
     {
         _grid = grid;
+        _skyGroundLevel = skyGroundLevel;
+        _skyColor = AirColor;
         Bitmap = new WriteableBitmap(
             grid.Width * CellSize, grid.Height * CellSize, 96, 96, PixelFormats.Bgr32, null);
         _stride = Bitmap.PixelWidth * 4;
         _backbuffer = new byte[_stride * Bitmap.PixelHeight];
         _tintMap = new Color?[grid.Width * grid.Height];
+    }
+
+    /// <summary>Phase 23 item 5: brightness for a fractional day position.
+    /// INVENTED phase mapping, chosen so the app doesn't launch into pitch
+    /// dark: day N.0 = dawn (0.5, brightening), N.25 = noon (1), N.5 = dusk
+    /// (0.5), N.75 = midnight (0). Exposed for the correspondence check.</summary>
+    public static double SkyBrightness(double dayFraction) =>
+        0.5 + 0.5 * Math.Sin(2 * Math.PI * dayFraction);
+
+    /// <summary>Feeds the day counter into the sky tint. Presentation-only,
+    /// like SimCalendar itself: reads the tick count, never influences the
+    /// simulation. Quantized to SkySteps; on a step change the sky band is
+    /// repainted into the backbuffer (flushed by the next DrawFrame).</summary>
+    public void SetTimeOfDay(double dayNumber)
+    {
+        if (_skyGroundLevel is not { } ground) return;
+        double frac = dayNumber - Math.Floor(dayNumber);
+        int step = (int)(SkyBrightness(frac) * (SkySteps - 1));
+        if (step == _skyStep) return;
+        _skyStep = step;
+        double b = step / (double)(SkySteps - 1);
+        _skyColor = Color.FromRgb(
+            (byte)(NightSkyColor.R + (DaySkyColor.R - NightSkyColor.R) * b),
+            (byte)(NightSkyColor.G + (DaySkyColor.G - NightSkyColor.G) * b),
+            (byte)(NightSkyColor.B + (DaySkyColor.B - NightSkyColor.B) * b));
+        for (int y = 0; y < Math.Min(ground, _grid.Height); y++)
+        {
+            for (int x = 0; x < _grid.Width; x++)
+            {
+                if (_grid[x, y] == CellMaterial.Air) DrawCell(x, y, _skyColor);
+            }
+        }
+        // Entities overlay after the dirty-cell pass each DrawFrame, so
+        // anything the repaint painted over is restored the same frame.
     }
 
     public void DrawFull(Colony? colony = null)
@@ -236,6 +291,9 @@ public sealed class GridRenderer
     {
         var m = _grid[x, y];
         if (m != CellMaterial.Air) return MaterialColor(m);
+        // Phase 23: sky-band air uses the current day/night tint, so cells
+        // the physics dirties up there repaint consistently with the band.
+        if (_skyGroundLevel is { } ground && y < ground) return _skyColor;
         return _tintMap[y * _grid.Width + x] ?? AirColor;
     }
 

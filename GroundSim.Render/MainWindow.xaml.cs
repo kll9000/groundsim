@@ -69,7 +69,9 @@ public partial class MainWindow : Window
 
         (_grid, _sim, _colony) = ColonyScenario.Create();
         _dirty = new DirtyTracker(_grid);
-        _renderer = new GridRenderer(_grid);
+        // Phase 23: sky band above the scenario's ground level gets the
+        // day/night tint.
+        _renderer = new GridRenderer(_grid, ColonyScenario.GroundLevel);
 
         SurfaceImage.Source = _renderer.Bitmap;
         _renderer.DrawFull(_colony);
@@ -183,6 +185,7 @@ public partial class MainWindow : Window
 
         if (ticks > 0)
         {
+            _renderer.SetTimeOfDay(SimCalendar.DayNumber(_colony.TickCount));
             _renderer.DrawFrame(_dirty.Cells, _sim, _colony);
             _lastDirtyCount = _dirty.Count;
             _dirty.Clear();

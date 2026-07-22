@@ -26,7 +26,9 @@ public partial class App : Application
     {
         var (grid, sim, colony) = ColonyScenario.Create();
         var dirty = new DirtyTracker(grid);
-        var renderer = new GridRenderer(grid);
+        // Phase 23: same sky band as the window, so the smoke exercises the
+        // tint path (and its cost) too.
+        var renderer = new GridRenderer(grid, ColonyScenario.GroundLevel);
         renderer.DrawFull(colony);
         dirty.Clear();
 
@@ -90,6 +92,7 @@ public partial class App : Application
             sim.Tick();
             MarkEntities();
             maxDirty = Math.Max(maxDirty, dirty.Count);
+            renderer.SetTimeOfDay(SimCalendar.DayNumber(colony.TickCount));
             renderer.DrawFrame(dirty.Cells, sim, colony);
             dirty.Clear();
         }
