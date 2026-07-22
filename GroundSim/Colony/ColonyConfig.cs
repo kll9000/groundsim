@@ -324,10 +324,15 @@ public sealed class ColonyConfig
     /// <summary>~day 4. INVENTED.</summary>
     public int GardenerMinEmergenceTick { get; init; } = 129_600;
 
-    /// <summary>~day 6. INVENTED. Note the knock-on: Foragers are the only
-    /// source of raw material, so every resource-driven room trigger
-    /// (Garden, Food-storage) shifts to after this day.</summary>
-    public int ForagerMinEmergenceTick { get; init; } = 216_000;
+    /// <summary>~day 2, matching Minim — RETUNED in Phase 25.5 from day 6
+    /// (216,000) on Kevin's call: Forager is the colony's ONLY
+    /// raw-gathering caste, i.e. the economic bottleneck, not a specialist
+    /// — gating it to day 6 stalled the whole resource pipeline and the
+    /// app-world garden never formed within a watchable window (Phase 25
+    /// report §4.1). Minim and Forager re-clustering is the accepted
+    /// trade-off; Gardener and Soldier still carry the day-scale spread.
+    /// INVENTED.</summary>
+    public int ForagerMinEmergenceTick { get; init; } = 43_200;
 
     /// <summary>~day 9.5 (stretching Soldier's existing last-to-appear
     /// margin, not inventing a new relationship). INVENTED.</summary>
