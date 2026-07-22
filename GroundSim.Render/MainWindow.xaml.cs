@@ -35,7 +35,12 @@ public partial class MainWindow : Window
     private readonly HashSet<Room> _tintedRooms = new();
     private readonly Stopwatch _frameTimer = Stopwatch.StartNew();
     private int _lastDirtyCount;
-    private readonly Dictionary<object, (int, int)> _lastEntityPos = new();
+    // Phase 22: value carries Units so a dead worker's final circle
+    // footprint can be dirty-marked when its entry is pruned (see
+    // MarkColonyEntities) — fixing both the unbounded-dictionary leak and
+    // the stale-circle-next-to-the-corpse visual.
+    private readonly Dictionary<object, (int X, int Y, int Units)> _lastEntityPos = new();
+    private readonly HashSet<object> _seenEntities = new();
 
     // MaxZoom raised with the Phase 13 resolution change so the deepest
     // zoom still reaches ~40 px per cell (2 px × 20, matching the old
@@ -216,10 +221,14 @@ public partial class MainWindow : Window
         }
         void MarkIfMoved(object who, int x, int y, int units)
         {
-            if (_lastEntityPos.TryGetValue(who, out var last) && last == (x, y)) return;
-            if (_lastEntityPos.TryGetValue(who, out var prev)) MarkArea(prev.Item1, prev.Item2, units);
+            _seenEntities.Add(who);
+            if (_lastEntityPos.TryGetValue(who, out var last))
+            {
+                if ((last.X, last.Y) == (x, y)) return;
+                MarkArea(last.X, last.Y, units);
+            }
             MarkArea(x, y, units);
-            _lastEntityPos[who] = (x, y);
+            _lastEntityPos[who] = (x, y, units);
         }
         foreach (var m in _colony.Minims) MarkIfMoved(m, m.X, m.Y, GridRenderer.SizeUnits(Caste.Minim));
         foreach (var g in _colony.Gardeners) MarkIfMoved(g, g.X, g.Y, GridRenderer.SizeUnits(Caste.Gardener));
@@ -227,6 +236,24 @@ public partial class MainWindow : Window
         foreach (var s in _colony.Soldiers) MarkIfMoved(s, s.X, s.Y, GridRenderer.SizeUnits(Caste.Soldier));
         MarkIfMoved(_colony.Queen, _colony.Queen.X, _colony.Queen.Y, GridRenderer.QueenSizeUnits);
         foreach (var egg in _colony.Eggs) _dirty.Mark(egg.X, egg.Y);
+
+        // Phase 22: prune entries for workers that no longer exist (death
+        // removes them from the caste lists). Without this the dictionary
+        // leaks unboundedly over a long run, AND the dead ant's final circle
+        // lingers on screen until nearby terrain changes happen to redraw it
+        // — marking the stale footprint here repaints it as background.
+        if (_lastEntityPos.Count > _seenEntities.Count)
+        {
+            List<object>? gone = null;
+            foreach (var (who, last) in _lastEntityPos)
+            {
+                if (_seenEntities.Contains(who)) continue;
+                MarkArea(last.X, last.Y, last.Units);
+                (gone ??= new()).Add(who);
+            }
+            if (gone is not null) foreach (var who in gone) _lastEntityPos.Remove(who);
+        }
+        _seenEntities.Clear();
     }
 
     private void UpdateStatus()

@@ -26,7 +26,23 @@ public sealed class GridRenderer
     public const int CellSize = 2; // pixels per cell
 
     private readonly Grid _grid;
-    private readonly byte[] _cellPixels = new byte[CellSize * CellSize * 4];
+
+    // Phase 22: single reusable backbuffer mirroring the whole bitmap. All
+    // draw methods write here; one WritePixels per frame (the dirty bounding
+    // rect) flushes it. Replaces a fresh byte[] + WritePixels call per dirty
+    // cell and per circle-row. Dirty-MARKING is untouched — this changes how
+    // pixel writes reach the bitmap, not what gets marked or when.
+    private readonly byte[] _backbuffer;
+    private readonly int _stride;
+    private int _dirtyX0, _dirtyY0, _dirtyX1, _dirtyY1; // px, X1/Y1 exclusive
+    private bool _dirtyAny;
+
+    // Phase 22: cell→room-tint map, stamped once per room when it becomes
+    // excavated (room cell membership is fixed at plan time and Excavated
+    // flips once, so a stamp never needs undoing). CellColor drops from
+    // O(rooms × Contains) per redrawn air cell to one array read.
+    private readonly Color?[] _tintMap;
+    private readonly HashSet<Room> _tintStamped = new();
 
     public WriteableBitmap Bitmap { get; }
 
@@ -140,15 +156,44 @@ public sealed class GridRenderer
         _grid = grid;
         Bitmap = new WriteableBitmap(
             grid.Width * CellSize, grid.Height * CellSize, 96, 96, PixelFormats.Bgr32, null);
+        _stride = Bitmap.PixelWidth * 4;
+        _backbuffer = new byte[_stride * Bitmap.PixelHeight];
+        _tintMap = new Color?[grid.Width * grid.Height];
     }
 
     public void DrawFull(Colony? colony = null)
     {
+        if (colony is not null) RefreshRoomTints(colony);
         for (int y = 0; y < _grid.Height; y++)
         {
             for (int x = 0; x < _grid.Width; x++)
             {
-                DrawCell(x, y, CellColor(x, y, colony));
+                DrawCell(x, y, CellColor(x, y));
+            }
+        }
+        Flush();
+    }
+
+    /// <summary>Stamps the tint map for any room that has become excavated
+    /// since the last call. Lives in the renderer (not the window) so the
+    /// headless smoke path gets identical tinting for free.</summary>
+    private void RefreshRoomTints(Colony colony)
+    {
+        foreach (var room in colony.Rooms)
+        {
+            if (!room.Excavated || !_tintStamped.Add(room)) continue;
+            var tint = room.Type switch
+            {
+                RoomType.Home => HomeTint,
+                RoomType.Garden => GardenTint,
+                RoomType.Nursery => NurseryTint,
+                RoomType.FoodStorage => FoodStorageTint,
+                RoomType.Graveyard => GraveyardTint,
+                _ => AirColor,
+            };
+            foreach (var (x, y) in room.Cells)
+            {
+                if (_grid.InBounds(x, y)) _tintMap[y * _grid.Width + x] = tint;
             }
         }
     }
@@ -158,9 +203,10 @@ public sealed class GridRenderer
     public void DrawFrame(
         IReadOnlyCollection<(int X, int Y)> dirtyCells, Simulation sim, Colony colony)
     {
+        RefreshRoomTints(colony);
         foreach (var (x, y) in dirtyCells)
         {
-            DrawCell(x, y, CellColor(x, y, colony));
+            DrawCell(x, y, CellColor(x, y));
         }
         foreach (var p in sim.ActiveParticles)
         {
@@ -179,30 +225,18 @@ public sealed class GridRenderer
         foreach (var f in colony.Foragers) DrawCasteCircle(f.X, f.Y, SizeUnits(Caste.Forager), ForagerColor);
         foreach (var s in colony.Soldiers) DrawCasteCircle(s.X, s.Y, SizeUnits(Caste.Soldier), SoldierColor);
         DrawCasteCircle(colony.Queen.X, colony.Queen.Y, QueenSizeUnits, QueenColor);
+        Flush();
     }
 
     /// <summary>Background color for a cell: material color, with excavated
-    /// rooms tinting their Air cells so "this is the Garden" reads visually.</summary>
-    private Color CellColor(int x, int y, Colony? colony)
+    /// rooms tinting their Air cells so "this is the Garden" reads visually.
+    /// Phase 22: tint comes from the precomputed map (see RefreshRoomTints),
+    /// not a per-cell scan over every room.</summary>
+    private Color CellColor(int x, int y)
     {
         var m = _grid[x, y];
-        if (m != CellMaterial.Air || colony is null) return MaterialColor(m);
-        foreach (var room in colony.Rooms)
-        {
-            if (room.Excavated && room.Contains(x, y))
-            {
-                return room.Type switch
-                {
-                    RoomType.Home => HomeTint,
-                    RoomType.Garden => GardenTint,
-                    RoomType.Nursery => NurseryTint,
-                    RoomType.FoodStorage => FoodStorageTint,
-                    RoomType.Graveyard => GraveyardTint,
-                    _ => AirColor,
-                };
-            }
-        }
-        return AirColor;
+        if (m != CellMaterial.Air) return MaterialColor(m);
+        return _tintMap[y * _grid.Width + x] ?? AirColor;
     }
 
     /// <summary>Phase 19 Part C: a filled circle of the given diameter in
@@ -225,33 +259,16 @@ public sealed class GridRenderer
             double half = Math.Sqrt(Math.Max(0, r * r - dy * dy));
             int x0 = Math.Max(0, (int)Math.Floor(cx - half));
             int x1 = Math.Min(bmpW, (int)Math.Ceiling(cx + half));
-            int w = x1 - x0;
-            if (w <= 0) continue;
-            var row = new byte[w * 4];
-            for (int i = 0; i < w; i++)
-            {
-                int o = i * 4;
-                row[o] = c.B;
-                row[o + 1] = c.G;
-                row[o + 2] = c.R;
-                row[o + 3] = 255;
-            }
-            Bitmap.WritePixels(new System.Windows.Int32Rect(x0, py, w, 1), row, w * 4, 0);
+            if (x1 - x0 > 0) WriteSpan(x0, py, x1 - x0, c);
         }
     }
 
     private void DrawCell(int x, int y, Color c)
     {
-        for (int i = 0; i < CellSize * CellSize; i++)
+        for (int row = 0; row < CellSize; row++)
         {
-            int o = i * 4;
-            _cellPixels[o] = c.B;
-            _cellPixels[o + 1] = c.G;
-            _cellPixels[o + 2] = c.R;
-            _cellPixels[o + 3] = 255;
+            WriteSpan(x * CellSize, y * CellSize + row, CellSize, c);
         }
-        var rect = new System.Windows.Int32Rect(x * CellSize, y * CellSize, CellSize, CellSize);
-        Bitmap.WritePixels(rect, _cellPixels, CellSize * 4, 0);
     }
 
     /// <summary>A smaller centered marker (eggs), so stationary entities read
@@ -262,16 +279,47 @@ public sealed class GridRenderer
     {
         const int inset = CellSize >= 4 ? 1 : 0;
         const int size = CellSize - 2 * inset;
-        var pixels = new byte[size * size * 4];
-        for (int i = 0; i < size * size; i++)
+        for (int row = 0; row < size; row++)
         {
-            int o = i * 4;
-            pixels[o] = c.B;
-            pixels[o + 1] = c.G;
-            pixels[o + 2] = c.R;
-            pixels[o + 3] = 255;
+            WriteSpan(x * CellSize + inset, y * CellSize + inset + row, size, c);
         }
-        var rect = new System.Windows.Int32Rect(x * CellSize + inset, y * CellSize + inset, size, size);
-        Bitmap.WritePixels(rect, pixels, size * 4, 0);
+    }
+
+    /// <summary>Writes a horizontal pixel run into the backbuffer and grows
+    /// the frame's dirty bounding rect. Callers pass in-bounds spans
+    /// (DrawCell/DrawDot derive from in-bounds cells; the circle clips).</summary>
+    private void WriteSpan(int px, int py, int w, Color c)
+    {
+        int o = py * _stride + px * 4;
+        for (int i = 0; i < w; i++, o += 4)
+        {
+            _backbuffer[o] = c.B;
+            _backbuffer[o + 1] = c.G;
+            _backbuffer[o + 2] = c.R;
+            _backbuffer[o + 3] = 255;
+        }
+        if (!_dirtyAny)
+        {
+            (_dirtyX0, _dirtyY0, _dirtyX1, _dirtyY1) = (px, py, px + w, py + 1);
+            _dirtyAny = true;
+            return;
+        }
+        if (px < _dirtyX0) _dirtyX0 = px;
+        if (py < _dirtyY0) _dirtyY0 = py;
+        if (px + w > _dirtyX1) _dirtyX1 = px + w;
+        if (py + 1 > _dirtyY1) _dirtyY1 = py + 1;
+    }
+
+    /// <summary>One WritePixels for the frame: copies the dirty bounding rect
+    /// of the backbuffer to the bitmap. The rect can cover pixels scattered
+    /// writes didn't touch — harmless, since the backbuffer mirrors the
+    /// bitmap's full content at all times.</summary>
+    private void Flush()
+    {
+        if (!_dirtyAny) return;
+        var rect = new System.Windows.Int32Rect(
+            _dirtyX0, _dirtyY0, _dirtyX1 - _dirtyX0, _dirtyY1 - _dirtyY0);
+        Bitmap.WritePixels(rect, _backbuffer, _stride, _dirtyY0 * _stride + _dirtyX0 * 4);
+        _dirtyAny = false;
     }
 }

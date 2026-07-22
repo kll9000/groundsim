@@ -139,7 +139,11 @@ public class FoundingShapeTests
 
 public class SpoilMoundTests
 {
+    // Phase 22: tagged Slow — an instrumented app-world run with a 240k-tick
+    // budget (~18s measured), second-slowest in the suite. Excluded from the
+    // fast inner loop; ALWAYS in phase gates.
     [Fact]
+    [Trait("Category", "Slow")]
     public void Spoil_BuildsOnBothSidesOfTheEntrance_NotOneFixedColumn()
     {
         var grid = Grid.CreateTestWorld(240, 120, groundLevel: 60, seed: 6);

@@ -185,7 +185,11 @@ public class EndToEndStageTests
 
     public EndToEndStageTests(ITestOutputHelper output) => _output = output;
 
+    // Phase 22: tagged Slow — 10 seeds × up-to-360k ticks dominates the
+    // whole suite (~7m47s of a ~8m total run). Excluded from the fast inner
+    // loop (dotnet test --filter "Category!=Slow"); ALWAYS in phase gates.
     [Fact]
+    [Trait("Category", "Slow")]
     public void Stages1Through4_CompleteAcrossASpreadOfSeededRuns()
     {
         // Spread-of-runs discipline: 10 seeds, not one playthrough. Phase 14:

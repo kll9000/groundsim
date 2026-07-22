@@ -30,7 +30,10 @@ public partial class App : Application
         renderer.DrawFull(colony);
         dirty.Clear();
 
-        var lastEntityPos = new Dictionary<object, (int, int)>();
+        // Phase 22: same prune-on-death logic as MainWindow.MarkColonyEntities
+        // (leak fix + stale-circle footprint marking) — kept in lockstep.
+        var lastEntityPos = new Dictionary<object, (int X, int Y, int Units)>();
+        var seenEntities = new HashSet<object>();
         void MarkEntities()
         {
             dirty.MarkParticles(sim);
@@ -44,10 +47,14 @@ public partial class App : Application
             }
             void MarkIfMoved(object who, int x, int y, int units)
             {
-                if (lastEntityPos.TryGetValue(who, out var last) && last == (x, y)) return;
-                if (lastEntityPos.TryGetValue(who, out var prev)) MarkArea(prev.Item1, prev.Item2, units);
+                seenEntities.Add(who);
+                if (lastEntityPos.TryGetValue(who, out var last))
+                {
+                    if ((last.X, last.Y) == (x, y)) return;
+                    MarkArea(last.X, last.Y, units);
+                }
                 MarkArea(x, y, units);
-                lastEntityPos[who] = (x, y);
+                lastEntityPos[who] = (x, y, units);
             }
             foreach (var m in colony.Minims) MarkIfMoved(m, m.X, m.Y, GridRenderer.SizeUnits(Caste.Minim));
             foreach (var g in colony.Gardeners) MarkIfMoved(g, g.X, g.Y, GridRenderer.SizeUnits(Caste.Gardener));
@@ -55,6 +62,18 @@ public partial class App : Application
             foreach (var s in colony.Soldiers) MarkIfMoved(s, s.X, s.Y, GridRenderer.SizeUnits(Caste.Soldier));
             MarkIfMoved(colony.Queen, colony.Queen.X, colony.Queen.Y, GridRenderer.QueenSizeUnits);
             foreach (var egg in colony.Eggs) dirty.Mark(egg.X, egg.Y);
+            if (lastEntityPos.Count > seenEntities.Count)
+            {
+                List<object>? gone = null;
+                foreach (var (who, last) in lastEntityPos)
+                {
+                    if (seenEntities.Contains(who)) continue;
+                    MarkArea(last.X, last.Y, last.Units);
+                    (gone ??= new()).Add(who);
+                }
+                if (gone is not null) foreach (var who in gone) lastEntityPos.Remove(who);
+            }
+            seenEntities.Clear();
         }
 
         int maxDirty = 0;
