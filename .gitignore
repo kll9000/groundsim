@@ -480,3 +480,9 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# GroundSim_Coms is deliberately OUTSIDE version control (see
+# GroundSim_Coms/Onboarding_and_Handoffs/GROUNDSIM-FILING-LOCATION-RULE.md).
+# Ignoring it also keeps the build's +dirty flag meaningful: untracked
+# communications must not mark a clean master build as dirty.
+GroundSim_Coms/
