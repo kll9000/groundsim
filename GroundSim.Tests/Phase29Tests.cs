@@ -19,7 +19,10 @@ public class FallbackOverlapTests
     /// inside the Home chamber). The Phase 29 escalating passes must land
     /// every fallback at tolerable overlap.
     /// Revert-proof (run and verified during Phase 29): restoring the old
-    /// blind-glue tail makes this fail at 54/72 overlapping cells.</summary>
+    /// blind-glue tail makes this fail at 72/72 overlapping cells (the
+    /// measured value, matching the Phase 29 report and the Verifier's
+    /// independent run — corrected in Phase 29.5; an earlier draft of this
+    /// comment said 54/72).</summary>
     [Fact]
     public void Fallback_UnderCrowdedNest_NeverProducesCatastrophicOverlap()
     {
@@ -66,6 +69,41 @@ public class FallbackOverlapTests
 
 public class UnreachableRemnantTests
 {
+    /// <summary>Phase 29.5 (Verifier finding): Room.HasRemainingDiggable's
+    /// write-off exclusion has no production consumer today — release,
+    /// maintenance, and founding all read the DigSite predicate — so a
+    /// revert there broke nothing. This pins the Room side directly, so a
+    /// future consumer of Room.HasRemainingDiggable inherits the agreement
+    /// property instead of a silent divergence from DigSite.</summary>
+    [Fact]
+    public void RoomPredicate_ExcludesWrittenOffCells_InLockstepWithDigSite()
+    {
+        var (grid, _) = ColonyTestWorld.Create();
+        var sim = new Simulation(grid, 1);
+        var colony = ColonyTestWorld.Founded(grid, sim);
+
+        // One solid, air-adjacent (frontier-eligible) cell as the room's
+        // only remaining work.
+        grid[150, 80] = CellMaterial.Dirt;
+        grid[150, 79] = CellMaterial.Air;
+        var room = colony.AddPendingRoom(RoomType.Garden, new[] { (150, 80) });
+        var site = room.PendingDig!;
+
+        Assert.True(room.HasRemainingDiggable(grid), "sanity: work remains");
+        Assert.True(site.HasRemainingDiggable(grid));
+
+        // Accumulate spaced strikes to the write-off limit.
+        for (int i = 0; i < DigSite.UnreachableStrikeLimit; i++)
+        {
+            site.RecordUnreachable(150, 80, i * DigSite.UnreachableStrikeSpacingTicks);
+        }
+        Assert.True(site.IsWrittenOff(150, 80), "sanity: cell is written off");
+
+        // BOTH predicates must stop demanding it — the lockstep pin.
+        Assert.False(site.HasRemainingDiggable(grid), "DigSite must exclude the write-off");
+        Assert.False(room.HasRemainingDiggable(grid), "Room must exclude the write-off in lockstep");
+    }
+
     /// <summary>The distilled PHASE25_5 §4 geometry, forced directly: a
     /// pending room whose only remaining diggable cells are a floating
     /// dirt shelf inside open chamber air — standable on top, but the
