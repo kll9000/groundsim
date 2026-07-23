@@ -128,6 +128,11 @@ public sealed class Room
             if (!grid.InBounds(x, y)) continue;
             // Phase 21: Remains is inert — same exclusion as DigSite/Agent.
             if (grid[x, y] is CellMaterial.Air or CellMaterial.Remains) continue;
+            // Phase 29: same write-off exclusion as DigSite — the two
+            // frontier predicates stay in lockstep (the ledger lives on the
+            // room's own pending site; after completion there is no site
+            // and nothing written off matters).
+            if (PendingDig is { } site && site.IsWrittenOff(x, y)) continue;
             if (grid.IsAir(x - 1, y) || grid.IsAir(x + 1, y)
                 || grid.IsAir(x, y - 1) || grid.IsAir(x, y + 1))
             {

@@ -57,6 +57,13 @@ public sealed class ColonyStats
 
     /// <summary>Settled Remains cells that decayed to Air.</summary>
     public int RemainsDecayed { get; set; }
+
+    /// <summary>Phase 29: dig sites released as FAILED — frontier-empty
+    /// with proven-unreachable (written-off) cells and too little open
+    /// air to count as genuinely excavated. Each is a degenerate room
+    /// shipped instead of a permanent excavation pin; should be 0 in
+    /// healthy runs, so any nonzero value is a loud signal.</summary>
+    public int FailedDigSiteReleases { get; set; }
 }
 
 /// <summary>Tick numbers at which colony-stage milestones occurred (null = not yet).</summary>
@@ -639,16 +646,41 @@ public sealed class Colony
         // (measured: 3 of 10 seeds shipped born-dead gardens). A frontier-
         // empty-but-closed site simply stays active; maintenance re-opens
         // the junction and digging resumes.
-        if (digging is not null && !ActiveDigSite.HasRemainingDiggable(Grid)
-            && ActiveDigSite.AirFraction(Grid) >= 0.3)
+        if (digging is not null && !ActiveDigSite.HasRemainingDiggable(Grid))
         {
-            digging.Excavated = true;
-            // The room's dig site (tunnel + chamber) becomes a standing
-            // maintenance responsibility from here on.
-            MaintenanceSites.Add(ActiveDigSite);
-            digging.PendingDig = null;
-            ActiveDigSite = null;
-            OnRoomExcavated(digging);
+            if (ActiveDigSite.AirFraction(Grid) >= 0.3)
+            {
+                digging.Excavated = true;
+                // The room's dig site (tunnel + chamber) becomes a standing
+                // maintenance responsibility from here on.
+                MaintenanceSites.Add(ActiveDigSite);
+                digging.PendingDig = null;
+                ActiveDigSite = null;
+                OnRoomExcavated(digging);
+            }
+            else if (ActiveDigSite.WrittenOffCount > 0)
+            {
+                // Phase 29: a frontier-empty site that is NOT substantially
+                // open AND has written-off cells is a catastrophically
+                // failed excavation (the seed-9 class). The old behavior —
+                // wait for maintenance to reopen a junction — cannot help
+                // here (the write-offs are proven unreachable, not
+                // transiently buried), so waiting = the permanent pin this
+                // phase exists to kill. Release it: the room completes
+                // DEGENERATE (mostly solid — the documented lesser failure,
+                // a phantom room, vs. a colony-wide excavation freeze),
+                // gets no maintenance responsibility (nothing meaningfully
+                // open to maintain), and the accounting makes the event
+                // impossible to miss.
+                digging.Excavated = true;
+                digging.PendingDig = null;
+                ActiveDigSite = null;
+                Stats.FailedDigSiteReleases++;
+                OnRoomExcavated(digging);
+            }
+            // else: frontier-empty, closed, and strike-free — the Phase
+            // 12.5 transient (junction buried by spill): stay active and
+            // let maintenance reopen it, exactly as before.
         }
     }
 
@@ -694,6 +726,20 @@ public sealed class Colony
 
     /// <summary>Test/setup helper: carve a room instantly, register it
     /// excavated, and apply its excavation effects.</summary>
+    /// <summary>Phase 29 test seam (mirrors AddExcavatedRoom's convention):
+    /// registers an UNexcavated room over the given cells with a live
+    /// pending dig site, exactly as room-trigger planning would — so tests
+    /// can force specific dig-site geometry (e.g. the floating-shelf
+    /// livelock repro) without going through the planner.</summary>
+    public Room AddPendingRoom(RoomType type, IEnumerable<(int X, int Y)> cells)
+    {
+        var list = cells.ToList();
+        var room = new Room(type, list, excavated: false);
+        room.PendingDig = new DigSite(list);
+        Rooms.Add(room);
+        return room;
+    }
+
     public Room AddExcavatedRoom(RoomType type, (int X0, int Y0, int X1, int Y1) rect)
     {
         for (int y = rect.Y0; y <= rect.Y1; y++)

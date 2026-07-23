@@ -44,7 +44,12 @@ public sealed class DigAssist
         {
             _agent?.ReleaseClaims();
             _site = site;
-            _agent = new Agent(grid, colony.Sim, colony.DigClaims, x, y, site.Cells, colony.NextSpoilDropX);
+            _agent = new Agent(grid, colony.Sim, colony.DigClaims, x, y, site.Cells, colony.NextSpoilDropX)
+            {
+                // Phase 29: proven approach-exhaustions feed the site's
+                // persistent strike ledger (see DigSite).
+                OnApproachExhausted = (tx, ty) => site.RecordUnreachable(tx, ty, colony.TickCount),
+            };
         }
 
         _agent.Tick();

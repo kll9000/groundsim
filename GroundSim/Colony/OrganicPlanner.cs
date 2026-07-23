@@ -180,16 +180,20 @@ public static class OrganicPlanner
 
         bool InBounds(int x0, int y0) =>
             x0 >= 1 && y0 >= 1 && x0 + 6 * S - 1 <= grid.Width - 2 && y0 + 3 * S - 1 <= grid.Height - 2;
-        bool OverlapsAnyRoom(int x0, int y0)
+        // Phase 29: counted, not boolean — the escalating passes below need
+        // "how bad" (the seed-9 catastrophe was 58/72 cells inside the Home
+        // chamber; small overlap is tolerable, that never was).
+        int OverlapCellCount(int x0, int y0)
         {
+            int n = 0;
             foreach (var room in existingRooms)
             {
                 foreach (var (cx, cy) in room.Cells)
                 {
-                    if (cx >= x0 && cx < x0 + 6 * S && cy >= y0 && cy < y0 + 3 * S) return true;
+                    if (cx >= x0 && cx < x0 + 6 * S && cy >= y0 && cy < y0 + 3 * S) n++;
                 }
             }
-            return false;
+            return n;
         }
         int AirJunction(int x0, int y0, Room touch)
         {
@@ -205,34 +209,81 @@ public static class OrganicPlanner
             }
             return n;
         }
-        RoomPlan? TryCandidate(int x0, int y0, Room touch)
+        // Phase 29: the escalating-pass fallback, replacing the blind
+        // pre-18.5 glue that landed seed 9's garden 58/72 cells inside the
+        // Home chamber (the tracked-item livelock, PHASE25_5_REPORT §4).
+        // Per the tracked item's sketch, the JUNCTION requirement relaxes
+        // BEFORE the overlap requirement — overlap is what creates the
+        // support-unreachable-remnant geometry, a junction just has to
+        // exist (a sealed rect is a born-dead site, the Phase 12.5 class):
+        //   pass 1: zero overlap, junction ≥ 2S   (the 18.5 search, as was)
+        //   pass 2: zero overlap, junction ≥ 1    (relaxed junction)
+        //   pass 3: overlap ≤ 10% of rect cells, junction ≥ 1 (mirrors the
+        //           planner's own 10% already-air tolerance convention)
+        //   pass 4: the least-overlapping junction-holding candidate seen
+        //           anywhere (minimal badness, never unbounded)
+        //   pass 5: the old glue — kept ONLY as the cannot-fail guarantee;
+        //           with pass 4 scanning every candidate it is effectively
+        //           unreachable, and the Phase 29 strike ledger now
+        //           backstops even this (a bad site can no longer pin).
+        int rectCells = 6 * S * 3 * S;
+        int maxTolerableOverlap = rectCells / 10;
+
+        RoomPlan MakePlan(int x0, int y0)
         {
-            if (!InBounds(x0, y0) || OverlapsAnyRoom(x0, y0)) return null;
-            if (AirJunction(x0, y0, touch) < 2 * S) return null;
             var room = new Room(type, x0, y0, x0 + 6 * S - 1, y0 + 3 * S - 1);
             return new RoomPlan(room, new DigSite(room.Cells), UsedFallback: true);
         }
 
         var anchors = new List<Room> { parent };
         anchors.AddRange(existingRooms.Where(r => r.Excavated && r != parent));
+        var candidates = new List<(int X0, int Y0, Room Touch)>();
         foreach (var touch in anchors)
         {
             // Below the room, scanning across its width; then flanking left
-            // and right, scanning down its height.
+            // and right, scanning down its height. (Same bounded candidate
+            // set as 18.5; the passes change acceptance, not the search.)
             for (int x0 = touch.X0 - 3 * S; x0 <= touch.X1 + 1; x0 += 3 * S)
             {
-                if (TryCandidate(x0, touch.Y1 + 1, touch) is { } below) return below;
+                candidates.Add((x0, touch.Y1 + 1, touch));
             }
             for (int y0 = touch.Y0; y0 <= touch.Y1 + 1; y0 += 3 * S)
             {
-                if (TryCandidate(touch.X1 + 1, y0, touch) is { } right) return right;
-                if (TryCandidate(touch.X0 - 6 * S, y0, touch) is { } left) return left;
+                candidates.Add((touch.X1 + 1, y0, touch));
+                candidates.Add((touch.X0 - 6 * S, y0, touch));
             }
         }
 
-        // Absolute last resort: the pre-18.5 glue placement.
-        var fallbackRoom = new Room(type, glueX, glueY, glueX + 6 * S - 1, glueY + 3 * S - 1);
-        return new RoomPlan(fallbackRoom, new DigSite(fallbackRoom.Cells), UsedFallback: true);
+        foreach (var (maxOverlap, minJunction) in new[] { (0, 2 * S), (0, 1), (maxTolerableOverlap, 1) })
+        {
+            foreach (var (x0, y0, touch) in candidates)
+            {
+                if (!InBounds(x0, y0)) continue;
+                if (OverlapCellCount(x0, y0) > maxOverlap) continue;
+                if (AirJunction(x0, y0, touch) < minJunction) continue;
+                return MakePlan(x0, y0);
+            }
+        }
+
+        // Pass 4: minimal overlap among junction-holding in-bounds
+        // candidates (ties: stronger junction).
+        (int X0, int Y0)? best = null;
+        int bestOverlap = int.MaxValue, bestJunction = -1;
+        foreach (var (x0, y0, touch) in candidates)
+        {
+            if (!InBounds(x0, y0)) continue;
+            int junction = AirJunction(x0, y0, touch);
+            if (junction < 1) continue;
+            int overlap = OverlapCellCount(x0, y0);
+            if (overlap < bestOverlap || (overlap == bestOverlap && junction > bestJunction))
+            {
+                (best, bestOverlap, bestJunction) = ((x0, y0), overlap, junction);
+            }
+        }
+        if (best is { } b) return MakePlan(b.X0, b.Y0);
+
+        // Pass 5: the pre-18.5 glue placement — cannot fail, see above.
+        return MakePlan(glueX, glueY);
     }
 
     /// <summary>

@@ -300,12 +300,23 @@ public sealed class Agent
         _digTarget = null;
     }
 
+    /// <summary>Phase 29: invoked when this agent abandons a dig target
+    /// because EVERY approach cell failed a support-aware path plan — the
+    /// proof-of-unreachability event the DigSite strike ledger records.
+    /// Wired by DigAssist/Queen to the active site; null for raw agents.</summary>
+    public Action<int, int>? OnApproachExhausted { get; set; }
+
     private void AbandonDigTarget()
     {
         if (_digTarget is { } t)
         {
             _claims.Remove(t);
             _unreachableTargets.Add(t); // don't re-pick it next scan
+            // Phase 29: every abandonment here follows a full approach
+            // exhaustion (all call sites are plan-failure paths) — report
+            // it to the persistent ledger. The ledger's own spacing window
+            // decides whether it counts as a new strike.
+            OnApproachExhausted?.Invoke(t.X, t.Y);
         }
         _digTarget = null;
         State = AgentState.Idle;

@@ -70,7 +70,13 @@ public sealed class Queen
         // Lazily created so her spoil deliveries use the colony's mound
         // drop-point provider like every other digger.
         _foundingAgent ??= new Agent(colony.Grid, colony.Sim, new HashSet<(int, int)>(),
-            X, Y, _foundingSite!.Cells, colony.NextSpoilDropX);
+            X, Y, _foundingSite!.Cells, colony.NextSpoilDropX)
+        {
+            // Phase 29: same strike-ledger wiring as DigAssist — founding
+            // geometry has never produced the unreachable class, but the
+            // defense is uniform rather than path-dependent.
+            OnApproachExhausted = (tx, ty) => _foundingSite!.RecordUnreachable(tx, ty, colony.TickCount),
+        };
 
         _foundingAgent.Tick();
         X = _foundingAgent.X;
