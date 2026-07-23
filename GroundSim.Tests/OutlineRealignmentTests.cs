@@ -52,7 +52,7 @@ public class FoodStorageFlowTests
             new ColonyConfig { EggSurvivalChance = 0, EggLayIntervalTicks = 1_000_000 });
         var h = ColonyTestWorld.Chamber;
         var storage = colony.AddExcavatedRoom(RoomType.FoodStorage, (h.X1 + 1, h.Y0 + 2, h.X1 + 9, h.Y1)); // touches home's air, walkable
-        colony.Nodes.Add(new ResourceNode(160, 59, 100));
+        colony.Nodes.Add(new ResourceNode(160, 59, 100) { Discovered = true }); // Phase 28: pre-discovered — this test is about food-storage flow, not discovery
         colony.Spawn(Caste.Forager, colony.HomeCenter.X, colony.HomeCenter.Y);
         colony.Spawn(Caste.Gardener, colony.HomeCenter.X + 1, colony.HomeCenter.Y);
 
@@ -104,7 +104,7 @@ public class DeathAndBurialTests
             WorkerLifespanMeanTicks = 1_500,
             WorkerLifespanJitterTicks = 300,
         });
-        var node = new ResourceNode(160, 59, 10_000);
+        var node = new ResourceNode(160, 59, 10_000) { Discovered = true }; // Phase 28: pre-discovered — this test is about the conservation ledger, not discovery
         colony.Nodes.Add(node);
         for (int i = 0; i < 6; i++)
         {

@@ -849,10 +849,14 @@ public sealed class Colony
     /// cannot dither an in-flight trip. Same seed → same choices.</summary>
     public ResourceNode? NearestNodeWithMaterial(int x, int y)
     {
+        // Phase 28: the omniscience removal — only DISCOVERED nodes are
+        // visible to target selection. Undiscovered nodes simply do not
+        // exist as far as this scan is concerned; a Forager with nothing
+        // to see scouts instead (Forager.TickScout).
         int bestDist = int.MaxValue;
         foreach (var node in Nodes)
         {
-            if (node.Remaining <= 0) continue;
+            if (!node.Discovered || node.Remaining <= 0) continue;
             int d = Math.Abs(node.X - x) + Math.Abs(node.Y - y);
             if (d < bestDist) bestDist = d;
         }
@@ -862,7 +866,7 @@ public sealed class Colony
         int inBand = 0;
         foreach (var node in Nodes)
         {
-            if (node.Remaining <= 0) continue;
+            if (!node.Discovered || node.Remaining <= 0) continue;
             if (Math.Abs(node.X - x) + Math.Abs(node.Y - y) <= limit) inBand++;
         }
         // Only consume RNG when there is a genuine choice — a selector
@@ -872,10 +876,50 @@ public sealed class Colony
         int pick = inBand == 1 ? 0 : _rng.Next(inBand);
         foreach (var node in Nodes)
         {
-            if (node.Remaining <= 0) continue;
+            if (!node.Discovered || node.Remaining <= 0) continue;
             if (Math.Abs(node.X - x) + Math.Abs(node.Y - y) <= limit && pick-- == 0) return node;
         }
         return null; // unreachable: inBand ≥ 1 whenever bestDist was found
+    }
+
+    /// <summary>Phase 28: rolls the next scout-wander waypoint for a
+    /// Forager at fromX. Lives on the Colony so the draws come from the
+    /// BEHAVIORAL seeded stream (_rng — the same instance behind the caste
+    /// rolls and Phase 24's near-tie randomness; scouting is an agent
+    /// decision, so it belongs here, NOT on Phase 26's separate placement
+    /// stream) and so _rng stays private. Outward bias: with probability
+    /// ScoutOutwardBias the hop continues away from the entrance. The
+    /// waypoint is the standable surface cell at the rolled x — scouts
+    /// sweep the surface, where every resource site lives. x is clamped
+    /// in-bounds BEFORE the surface scan (the Phase 20 sweep's lesson:
+    /// surface scans bound y but not x, so the caller must).</summary>
+    public (int X, int Y) PickScoutTarget(int fromX)
+    {
+        int dir = fromX >= EntranceX ? 1 : -1;
+        if (_rng.NextDouble() >= Config.ScoutOutwardBias) dir = -dir;
+        int hop = Config.ScoutHopMin + _rng.Next(Config.ScoutHopMax - Config.ScoutHopMin + 1);
+        int x = Math.Clamp(fromX + dir * hop, 1, Grid.Width - 2);
+        int surf = 0;
+        while (surf < Grid.Height && Grid.IsAir(x, surf)) surf++;
+        return (x, Math.Max(0, surf - 1));
+    }
+
+    /// <summary>Phase 28: marks any undiscovered node within
+    /// NodeDetectionRadius of (x, y) as discovered — colony-wide, per the
+    /// shared-structure biology. Called from Forager.Tick every tick
+    /// regardless of mode (a laden passer-by can notice a site too, not
+    /// only a dedicated scout — flagged choice; agents move ≤1 cell/tick
+    /// and the radius is 8, so per-tick checking cannot skip past a node).</summary>
+    public void TryDiscoverNodesNear(int x, int y)
+    {
+        foreach (var node in Nodes)
+        {
+            if (!node.Discovered
+                && Math.Abs(node.X - x) + Math.Abs(node.Y - y) <= Config.NodeDetectionRadius)
+            {
+                node.Discovered = true;
+            }
+        }
     }
 
 }

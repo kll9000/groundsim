@@ -14,6 +14,14 @@ public sealed class ResourceNode
     /// <summary>Regeneration ceiling — the node's initial amount.</summary>
     public double Cap { get; }
 
+    /// <summary>Phase 28: colony-wide discovery flag. Starts false — a
+    /// Forager must come within ColonyConfig.NodeDetectionRadius to find
+    /// the node before ANY Forager can target it. Deliberately shared
+    /// state, not per-ant memory: a trail is a real structure other ants
+    /// can sense, so one find unlocks the site for the whole colony.
+    /// Tests that are not about discovery pre-set this to true.</summary>
+    public bool Discovered { get; set; }
+
     public ResourceNode(int x, int y, double amount)
     {
         X = x;

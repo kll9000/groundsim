@@ -260,7 +260,7 @@ public class ResourceSustainTests
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = ColonyTestWorld.Founded(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0, NodeRegenPerTick = 0.5 });
-        var node = new ResourceNode(80, 59, 10);
+        var node = new ResourceNode(80, 59, 10) { Discovered = true }; // Phase 28: pre-discovered — this test is about regeneration, not discovery
         colony.Nodes.Add(node);
         node.Remaining = 0;
 
@@ -291,8 +291,8 @@ public class ResourceSustainTests
             FoodStorageTriggerThreshold = double.MaxValue,
             NodeRegenPerTick = 0.05,
         });
-        colony.Nodes.Add(new ResourceNode(60, 59, 25)); // Phase 15: ×GridScale, on the new surface
-        colony.Nodes.Add(new ResourceNode(180, 59, 25));
+        colony.Nodes.Add(new ResourceNode(60, 59, 25) { Discovered = true }); // Phase 15: ×GridScale, on the new surface // Phase 28: pre-discovered — this test is about sustained gathering, not discovery
+        colony.Nodes.Add(new ResourceNode(180, 59, 25) { Discovered = true }); // Phase 28: pre-discovered — this test is about sustained gathering, not discovery
         colony.Spawn(Caste.Forager, colony.HomeCenter.X, colony.HomeCenter.Y);
         colony.Spawn(Caste.Forager, colony.HomeCenter.X + 1, colony.HomeCenter.Y);
 

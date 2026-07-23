@@ -362,6 +362,34 @@ public sealed class ColonyConfig
     public double TrailCullThreshold { get; init; } = 0.05;
 
     // ------------------------------------------------------------------
+    // Phase 28: discovery / scout-wander constants. ALL INVENTED.
+    // ------------------------------------------------------------------
+
+    /// <summary>Manhattan distance at which a Forager senses an
+    /// undiscovered node. 8 cells (4 physical at GridScale 2) — half the
+    /// scenario's minimum node spacing, so detection can't blur two sites
+    /// into one find. INVENTED.</summary>
+    public int NodeDetectionRadius { get; init; } = 8;
+
+    /// <summary>Scout hop length range (cells): each wander leg walks a
+    /// surface point this far away, then re-rolls. Min 20 keeps hops past
+    /// the detection radius (real new ground per hop); max 60 spans about
+    /// a third of the scenario's half-world per leg. INVENTED.</summary>
+    public int ScoutHopMin { get; init; } = 20;
+    public int ScoutHopMax { get; init; } = 60;
+
+    /// <summary>Probability a hop continues AWAY from the entrance rather
+    /// than back toward it — the outward bias that makes scouts cover new
+    /// ground instead of dithering near home. INVENTED.</summary>
+    public double ScoutOutwardBias { get; init; } = 0.7;
+
+    /// <summary>Ticks of scouting before a Forager gives up, walks home,
+    /// and starts over (a fruitless scout comes back rather than getting
+    /// functionally lost). ~2 trail half-lives; enough for 20+ hops.
+    /// INVENTED.</summary>
+    public int ScoutBudgetTicks { get; init; } = 3_000;
+
+    // ------------------------------------------------------------------
     // Known tuned values for systems GroundSim does NOT have yet
     // (Phase 14, Part C). Recorded here so future phases that build these
     // systems start from Colony Builder's real numbers instead of

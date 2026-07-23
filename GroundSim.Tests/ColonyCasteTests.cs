@@ -110,7 +110,7 @@ public class GardenerTests
         // Tempting targets: full nodes outside AND an egg right next to the
         // gardener, with NO raw to process — an idle gardener with an easy
         // egg to tend and easy nodes to raid must still do neither.
-        colony.Nodes.Add(new ResourceNode(80, 59, 100));
+        colony.Nodes.Add(new ResourceNode(80, 59, 100) { Discovered = true }); // Phase 28: pre-discovered — this test is about role purity/mechanics, not discovery
         colony.Spawn(Caste.Gardener, colony.HomeCenter.X, colony.HomeCenter.Y);
         colony.LayEgg();
         int untendedMaturation = colony.Config.EggMaturationTicks;
@@ -169,8 +169,8 @@ public class MinimTests
         // Tempting targets: full nodes outside AND a pile of raw material at
         // the processing site — minims with nothing to tend must not touch
         // either (no eggs are ever laid here).
-        colony.Nodes.Add(new ResourceNode(80, 59, 100));
-        colony.Nodes.Add(new ResourceNode(140, 59, 100));
+        colony.Nodes.Add(new ResourceNode(80, 59, 100) { Discovered = true }); // Phase 28: pre-discovered — this test is about role purity/mechanics, not discovery
+        colony.Nodes.Add(new ResourceNode(140, 59, 100) { Discovered = true }); // Phase 28: pre-discovered — this test is about role purity/mechanics, not discovery
         colony.Spawn(Caste.Minim, colony.HomeCenter.X, colony.HomeCenter.Y);
         colony.Spawn(Caste.Minim, colony.HomeCenter.X + 1, colony.HomeCenter.Y);
         colony.RawMaterial = 50;
@@ -198,7 +198,7 @@ public class ForagerTests
         // node depletion to have exactly one cause — gathering.
         var colony = ColonyTestWorld.Founded(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0, NodeRegenPerTick = 0 });
-        var node = new ResourceNode(160, 59, 20);
+        var node = new ResourceNode(160, 59, 20) { Discovered = true }; // Phase 28: pre-discovered — this test is about gather-loop mechanics, not discovery
         colony.Nodes.Add(node);
         colony.Spawn(Caste.Forager, colony.HomeCenter.X, colony.HomeCenter.Y);
 
@@ -318,7 +318,7 @@ public class SoldierTests
         var (grid, sim) = ColonyTestWorld.Create();
         var colony = ColonyTestWorld.Founded(grid, sim,
             new ColonyConfig { EggSurvivalChance = 0 });
-        colony.Nodes.Add(new ResourceNode(80, 59, 100));
+        colony.Nodes.Add(new ResourceNode(80, 59, 100) { Discovered = true }); // Phase 28: pre-discovered — this test is about role purity/mechanics, not discovery
         colony.RawMaterial = 10;
         colony.Spawn(Caste.Soldier, colony.HomeCenter.X, colony.HomeCenter.Y);
 

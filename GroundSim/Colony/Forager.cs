@@ -13,6 +13,14 @@ public sealed class Forager
     private readonly DigAssist _dig = new();
     private ResourceNode? _targetNode;
 
+    // Phase 28: scout-wander state. A Forager with no DISCOVERED node to
+    // target scouts: hop to a rolled surface waypoint (Colony.PickScoutTarget,
+    // behavioral seeded stream), re-roll on arrival, give up after
+    // ScoutBudgetTicks and walk home before trying again.
+    private (int X, int Y)? _scoutTarget;
+    private int _scoutBudget = -1; // -1 = not currently scouting
+    private bool _scoutHeadingHome;
+
     public int X => _walker.X;
     public int Y => _walker.Y;
     public double Carrying { get; private set; }
@@ -47,8 +55,19 @@ public sealed class Forager
             return;
         }
 
+        // Phase 28: sensing runs every tick regardless of mode (a laden
+        // passer-by can notice a site too, not only a dedicated scout —
+        // flagged choice). Agents move ≤1 cell/tick against a detection
+        // radius of 8, so per-tick checks cannot step past a node.
+        colony.TryDiscoverNodesNear(X, Y);
+
         if (Carrying > 0)
         {
+            // Phase 28: the return trail — a LADEN Forager reinforces the
+            // cell she stands on each tick of the trip home (the biology's
+            // recruitment signal; outbound-leg laying deliberately skipped
+            // this phase per the handoff). Phase 29 makes strength matter.
+            colony.Trails.Reinforce(X, Y);
             // Phase 18 Part B: deposits go to the Food-storage room once it
             // exists (RawDepositSite = Home center until then).
             if (_walker.MoveTowards(grid, colony.RawDepositSite))
@@ -63,8 +82,18 @@ public sealed class Forager
 
         if (_targetNode is null || _targetNode.Remaining <= 0)
         {
+            // Phase 28: this scan now sees only DISCOVERED nodes — the
+            // omniscience removal. Nothing discovered (or everything
+            // discovered is empty) → scout instead of idling.
             _targetNode = colony.NearestNodeWithMaterial(X, Y);
-            if (_targetNode is null) return; // nothing left to gather anywhere
+            if (_targetNode is null)
+            {
+                TickScout(colony, grid);
+                return;
+            }
+            _scoutBudget = -1; // found a target: any scout session ends
+            _scoutTarget = null;
+            _scoutHeadingHome = false;
         }
 
         if (_walker.MoveTowards(grid, (_targetNode.X, _targetNode.Y)))
@@ -75,6 +104,37 @@ public sealed class Forager
             double taken = Math.Min(colony.Config.HaulSize(dist), _targetNode.Remaining);
             _targetNode.Remaining -= taken;
             Carrying = taken;
+        }
+    }
+
+    /// <summary>Phase 28: one tick of scout wander. Hop to the current
+    /// rolled waypoint; on arrival (or an exhausted hop), roll the next
+    /// from the colony's behavioral RNG. When the session budget runs out,
+    /// walk home and reset — the next target-less tick starts a fresh
+    /// session from there, so a fruitless scout "comes back and tries
+    /// again later" instead of getting functionally lost.</summary>
+    private void TickScout(Colony colony, Grid grid)
+    {
+        if (_scoutHeadingHome)
+        {
+            if (_walker.MoveTowards(grid, colony.HomeCenter))
+            {
+                _scoutHeadingHome = false;
+                _scoutBudget = -1;
+            }
+            return;
+        }
+        if (_scoutBudget < 0) _scoutBudget = colony.Config.ScoutBudgetTicks;
+        if (--_scoutBudget <= 0)
+        {
+            _scoutHeadingHome = true;
+            _scoutTarget = null;
+            return;
+        }
+        _scoutTarget ??= colony.PickScoutTarget(X);
+        if (_walker.MoveTowards(grid, _scoutTarget.Value))
+        {
+            _scoutTarget = null; // arrived: next tick rolls the next hop
         }
     }
 }
