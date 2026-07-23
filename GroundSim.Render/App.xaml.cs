@@ -41,6 +41,8 @@ public partial class App : Application
             dirty.MarkParticles(sim);
             dirty.Mark(colony.Queen.X, colony.Queen.Y);
             foreach (var c in colony.Corpses) dirty.Mark(c.X, c.Y);
+            // Phase 27: same trail dirty-marking as MainWindow (see there).
+            foreach (var (cell, _) in colony.Trails.Entries) dirty.Mark(cell.X, cell.Y);
             void MarkArea(int x, int y, int units)
             {
                 int r = units / 2 + 1;

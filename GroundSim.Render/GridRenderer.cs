@@ -114,6 +114,15 @@ public sealed class GridRenderer
     // constant exposed via the legend; presentation-only.
     private static readonly Color LeafNodeFullColor = Color.FromRgb(150, 240, 70);
     private static readonly Color LeafNodeEmptyColor = Color.FromRgb(58, 66, 40);
+
+    // Phase 27: trail overlay — a faint teal wash per trail cell, opacity
+    // scaled by strength (blended into whatever is under it, so it reads
+    // as a stain on the ground, not a solid object). Distinct from every
+    // existing legend color; full-strength swatch exposed via the legend.
+    private static readonly Color TrailColor = Color.FromRgb(96, 205, 214);
+    /// <summary>Max blend fraction at full trail strength — "faint" is the
+    /// point (functional legibility, not art). INVENTED.</summary>
+    private const double TrailMaxOpacity = 0.45;
     private static readonly Color HomeTint = Color.FromRgb(44, 40, 56);
     private static readonly Color GardenTint = Color.FromRgb(32, 54, 40);
     private static readonly Color NurseryTint = Color.FromRgb(56, 46, 32);
@@ -147,6 +156,7 @@ public sealed class GridRenderer
         ("Egg", EggColor),
         ("Remains", MaterialColor(CellMaterial.Remains)),
         ("Leaf node", LeafNodeFullColor),
+        ("Trail", TrailColor),
         ("Home room", HomeTint),
         ("Garden room", GardenTint),
         ("Nursery room", NurseryTint),
@@ -285,6 +295,16 @@ public sealed class GridRenderer
         // node appear on top of it. Redrawn every frame like eggs/corpses —
         // markers never move, so no ghost-trail marking is needed; terrain
         // changes under one repaint as background first, marker on top.
+        // Phase 27: trail overlay draws after backgrounds, before markers
+        // and circles — a stain on the ground with everything alive on top.
+        // Redrawn every frame; the hosts dirty-mark trail cells each tick
+        // (before AND after Tick, so a cell whose entry just decayed away
+        // gets its background restored the same frame).
+        foreach (var (cell, strength) in colony.Trails.Entries)
+        {
+            double a = TrailMaxOpacity * Math.Min(1.0, strength / colony.Config.TrailMaxStrength);
+            BlendCell(cell.X, cell.Y, TrailColor, a);
+        }
         foreach (var n in colony.Nodes) DrawNodeMarker(n);
         // Phase 19 Part C: castes render as circles sized by SizeUnits —
         // purely visual; the agent's grid cell (all gameplay logic) is the
@@ -380,6 +400,38 @@ public sealed class GridRenderer
         for (int row = 0; row < size; row++)
         {
             WriteSpan(x * CellSize + inset, y * CellSize + inset + row, size, c);
+        }
+    }
+
+    /// <summary>Phase 27: alpha-blends a cell's pixels toward a color in the
+    /// backbuffer (out = bg + (c − bg)·a) — the trail overlay's "faint wash"
+    /// primitive. In-bounds cells only, like DrawCell.</summary>
+    private void BlendCell(int x, int y, Color c, double a)
+    {
+        if (x < 0 || y < 0 || x >= _grid.Width || y >= _grid.Height) return;
+        for (int row = 0; row < CellSize; row++)
+        {
+            int py = y * CellSize + row;
+            int o = py * _stride + x * CellSize * 4;
+            for (int i = 0; i < CellSize; i++, o += 4)
+            {
+                _backbuffer[o] = (byte)(_backbuffer[o] + (c.B - _backbuffer[o]) * a);
+                _backbuffer[o + 1] = (byte)(_backbuffer[o + 1] + (c.G - _backbuffer[o + 1]) * a);
+                _backbuffer[o + 2] = (byte)(_backbuffer[o + 2] + (c.R - _backbuffer[o + 2]) * a);
+            }
+        }
+        int px = x * CellSize, py0 = y * CellSize;
+        if (!_dirtyAny)
+        {
+            (_dirtyX0, _dirtyY0, _dirtyX1, _dirtyY1) = (px, py0, px + CellSize, py0 + CellSize);
+            _dirtyAny = true;
+        }
+        else
+        {
+            if (px < _dirtyX0) _dirtyX0 = px;
+            if (py0 < _dirtyY0) _dirtyY0 = py0;
+            if (px + CellSize > _dirtyX1) _dirtyX1 = px + CellSize;
+            if (py0 + CellSize > _dirtyY1) _dirtyY1 = py0 + CellSize;
         }
     }
 

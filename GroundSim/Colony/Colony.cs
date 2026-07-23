@@ -100,6 +100,11 @@ public sealed class Colony
     /// gates population-locked caste rolls, Phase 18).</summary>
     public int WorkerCount => Minims.Count + Gardeners.Count + Foragers.Count + Soldiers.Count;
     public List<ResourceNode> Nodes { get; } = new();
+
+    /// <summary>Phase 27: the colony's pheromone-trail map. Live and ticked
+    /// (decay) every colony tick, but nothing populates it until Phase 28
+    /// wires Forager behavior in — see TrailMap for the architecture.</summary>
+    public TrailMap Trails { get; }
     public ColonyStats Stats { get; } = new();
     public ColonyMilestones Milestones { get; } = new();
     public int TotalEggsLaid { get; private set; }
@@ -215,6 +220,7 @@ public sealed class Colony
         Grid = grid;
         Sim = sim;
         Config = config;
+        Trails = new TrailMap(config);
         Rooms.Add(homeRoom);
         Queen = queen;
         _rng = new Random(seed);
@@ -285,6 +291,7 @@ public sealed class Colony
         TickCount++;
 
         foreach (var node in Nodes) node.Regenerate(Config.NodeRegenPerTick);
+        Trails.Tick(); // Phase 27: O(active trail cells) — no-op while empty
 
         UpdateRoomTriggers();
         ManageExcavation();

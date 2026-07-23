@@ -339,6 +339,29 @@ public sealed class ColonyConfig
     public int SoldierMinEmergenceTick { get; init; } = 367_200;
 
     // ------------------------------------------------------------------
+    // Phase 27: trail-system constants. ALL INVENTED, single-sourced here
+    // per convention. Exponential decay chosen over linear (one factor
+    // gives a scale-free half-life, can't overshoot below zero).
+    // ------------------------------------------------------------------
+
+    /// <summary>Per-tick multiplicative decay. 0.9995 → half-life ≈ 1,386
+    /// ticks (~46 sim-s; ~5.8 real-s at the 240 tps default) — long enough
+    /// to outlive a typical forage round trip (~200–600 ticks), short
+    /// enough that an abandoned route visibly fades. INVENTED.</summary>
+    public double TrailDecayFactor { get; init; } = 0.9995;
+
+    /// <summary>Strength added per reinforcement event. INVENTED.</summary>
+    public double TrailReinforcePerVisit { get; init; } = 1.0;
+
+    /// <summary>Ceiling on any one cell's strength — heavily-trafficked
+    /// cells saturate instead of growing without bound. INVENTED.</summary>
+    public double TrailMaxStrength { get; init; } = 12.0;
+
+    /// <summary>Entries decaying below this are removed outright (sparse
+    /// cleanup) — nothing lingers at near-zero forever. INVENTED.</summary>
+    public double TrailCullThreshold { get; init; } = 0.05;
+
+    // ------------------------------------------------------------------
     // Known tuned values for systems GroundSim does NOT have yet
     // (Phase 14, Part C). Recorded here so future phases that build these
     // systems start from Colony Builder's real numbers instead of

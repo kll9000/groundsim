@@ -93,6 +93,28 @@ public partial class MainWindow : Window
         // day/night tint.
         _renderer = new GridRenderer(_grid, ColonyScenario.GroundLevel);
 
+        // Phase 27: --trail-demo injects a synthetic trail pattern at
+        // startup (nothing populates trails for real until Phase 28) — three
+        // surface runs from the entrance toward scattered nodes at graded
+        // strengths, so the overlay, its strength scaling, and live decay
+        // can be SEEN before any behavior exists. Presentation-only; decays
+        // away in about a minute, which is itself a demo of the decay.
+        if (Environment.GetCommandLineArgs().Contains("--trail-demo") && _colony.Nodes.Count >= 3)
+        {
+            int surfaceY = ColonyScenario.GroundLevel - 1;
+            var targets = new[] { _colony.Nodes[0], _colony.Nodes[1], _colony.Nodes[2] };
+            for (int t = 0; t < targets.Length; t++)
+            {
+                int reinforcements = (t + 1) * 4; // graded: faint → strong
+                int from = Math.Min(_colony.EntranceX, targets[t].X);
+                int to = Math.Max(_colony.EntranceX, targets[t].X);
+                for (int x = from; x <= to; x++)
+                {
+                    for (int k = 0; k < reinforcements; k++) _colony.Trails.Reinforce(x, surfaceY);
+                }
+            }
+        }
+
         SurfaceImage.Source = _renderer.Bitmap;
         _renderer.DrawFull(_colony);
         _dirty.Clear();
@@ -230,6 +252,12 @@ public partial class MainWindow : Window
     {
         _dirty.MarkParticles(_sim);
         foreach (var c in _colony.Corpses) _dirty.Mark(c.X, c.Y);
+        // Phase 27: every live trail cell is dirty every tick — the overlay
+        // BLENDS into the background, so the background must be repainted
+        // first each frame or the wash compounds toward solid; marking
+        // before AND after Tick also restores cells whose entries decayed
+        // away this tick.
+        foreach (var (cell, _) in _colony.Trails.Entries) _dirty.Mark(cell.X, cell.Y);
         // Phase 19: circles span multiple cells, so a MOVING ant must mark
         // its old and new footprints or it leaves ghost trails of stale
         // circle paint. Stationary ants mark nothing: circles are repainted
