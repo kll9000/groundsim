@@ -390,6 +390,37 @@ public sealed class ColonyConfig
     public int ScoutBudgetTicks { get; init; } = 3_000;
 
     // ------------------------------------------------------------------
+    // Phase 31: the Nectar pool — the colony's actual food supply,
+    // distinct from FarmedResource (which stays exactly as it was: the
+    // Garden-trigger metric). Produced by Gardener processing, drained
+    // passively. NOTHING consumes-or-reacts to Nectar hitting zero yet —
+    // that is a deliberately open design question (Phase 31 handoff §2),
+    // not an oversight. No caste interacts with the pool besides the
+    // Gardener production hook.
+    // ------------------------------------------------------------------
+
+    /// <summary>Nectar produced per completed Gardener processing cycle
+    /// (the same moment FarmedResource += 1). INVENTED.</summary>
+    public double NectarPerProcessing { get; init; } = 1.0;
+
+    /// <summary>PORTED, not invented: Colony Builder's decayRate — 0.18
+    /// mass/s passive drain (game.js; recorded as known-gap #9 below since
+    /// Phase 14, and this is exactly the gap it was recorded for). The
+    /// per-tick value is derived in Colony.Tick at the canonical 30
+    /// ticks/s (Phase 14 conversion basis): 0.18 / 30 = 0.006/tick at the
+    /// reference population.</summary>
+    public double NectarDecayMassPerSecond { get; init; } = 0.18;
+
+    /// <summary>Population scaling for the drain (the ported number is a
+    /// flat colony-wide rate in Colony Builder; the Phase 31 handoff asks
+    /// for population scaling): the drain equals the ported 0.18 mass/s
+    /// exactly AT this worker count and scales linearly with WorkerCount
+    /// around it. 70 = GroundSim's own MEASURED Phase 18 population
+    /// equilibrium — a real number, though its use as the anchor here is
+    /// an INVENTED scaling choice, flagged.</summary>
+    public int NectarDecayReferencePopulation { get; init; } = 70;
+
+    // ------------------------------------------------------------------
     // Known tuned values for systems GroundSim does NOT have yet
     // (Phase 14, Part C). Recorded here so future phases that build these
     // systems start from Colony Builder's real numbers instead of

@@ -112,6 +112,14 @@ public sealed class Colony
     /// (decay) every colony tick, but nothing populates it until Phase 28
     /// wires Forager behavior in — see TrailMap for the architecture.</summary>
     public TrailMap Trails { get; }
+
+    /// <summary>Phase 31: the colony's food supply — produced by Gardener
+    /// processing (NectarPerProcessing per completed cycle), drained
+    /// passively every tick (the ported Colony Builder decayRate, scaled
+    /// by population — see TickNectar). Floors at zero; what happens AT
+    /// zero is a deliberately open design question (nothing yet). Setter
+    /// is public for the synthetic test harness, mirroring RawMaterial.</summary>
+    public double Nectar { get; set; }
     public ColonyStats Stats { get; } = new();
     public ColonyMilestones Milestones { get; } = new();
     public int TotalEggsLaid { get; private set; }
@@ -299,6 +307,7 @@ public sealed class Colony
 
         foreach (var node in Nodes) node.Regenerate(Config.NodeRegenPerTick);
         Trails.Tick(); // Phase 27: O(active trail cells) — no-op while empty
+        TickNectar(); // Phase 31: passive population-scaled drain, floor 0
 
         UpdateRoomTriggers();
         ManageExcavation();
@@ -609,6 +618,24 @@ public sealed class Colony
         var plan = OrganicPlanner.Plan(Grid, Rooms, parent, type, Config, _rng);
         plan.Room.PendingDig = plan.Site;
         Rooms.Add(plan.Room);
+    }
+
+    /// <summary>Phase 31: the Nectar drain. Per-tick amount =
+    /// (NectarDecayMassPerSecond / 30 ticks-per-sec) × (WorkerCount /
+    /// NectarDecayReferencePopulation) — i.e. exactly the ported 0.18
+    /// mass/s at the reference population of 70, scaling linearly with
+    /// the live worker count (the Queen is deliberately NOT counted:
+    /// WorkerCount is the same population every other population-scaled
+    /// mechanic uses — flagged choice). Pure math, no RNG. Floors at
+    /// zero and does nothing further there — the at-zero consequence is
+    /// an explicitly open design question (Phase 31 handoff §2).</summary>
+    private void TickNectar()
+    {
+        if (Nectar <= 0) return;
+        const double ticksPerSecond = 30.0; // canonical, Phase 14 basis
+        double drain = Config.NectarDecayMassPerSecond / ticksPerSecond
+            * WorkerCount / Config.NectarDecayReferencePopulation;
+        Nectar = Math.Max(0, Nectar - drain);
     }
 
     private void ManageExcavation()

@@ -61,6 +61,11 @@ public sealed class Gardener
                 if (CarryingRaw) CarryingRaw = false;
                 else colony.RawMaterial -= 1;
                 colony.FarmedResource += 1;
+                // Phase 31: the same completed cycle also yields Nectar —
+                // the colony's food supply (drained passively in
+                // Colony.TickNectar). FarmedResource itself is untouched:
+                // it remains the Garden-trigger metric exactly as before.
+                colony.Nectar += colony.Config.NectarPerProcessing;
                 colony.Stats.RawProcessedByGardeners += 1;
                 if (colony.GetRoom(RoomType.Garden) is { Excavated: true } garden
                     && garden.Contains(X, Y))
